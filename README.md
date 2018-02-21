@@ -1,2 +1,3 @@
-# azure-cfme-tower
-MS Azure CloudForms Tower Demo
+# Microsfot Azure / Red Hat Cloudforms / Ansible Tower Demo
+
+This demo will spin up resources in Azure using CloudForms and Ansible Tower
