@@ -71,87 +71,21 @@
             - "10.5.0.0/16"
       with_dict:
         - "{{ azure }}"
-    # - name: Create a subnet
+
+    # - name: Create subnets
     #   azure_rm_subnet:
     #     name: "{{ resource }}-subnet1"
     #     virtual_network_name: "{{ resource }}-vnet"
     #     resource_group: "{{ resource }}"
     #     address_prefix_cidr: "10.5.0.0/24"
-    #
-    # - name: Create a subnet
-    #   azure_rm_subnet:
-    #     name: "{{ resource }}-subnet2"
-    #     virtual_network_name: "{{ resource }}-vnet"
-    #     resource_group: "{{ resource }}"
-    #     address_prefix_cidr: "10.5.1.0/24"
-    #
-    # - name: Create VM
-    #   azure_rm_virtualmachine:
-    #     resource_group: "{{ resource }}"
-    #     name: "{{ resource }}"
-    #     vm_size: "{{ vmsize }}"
-    #     admin_username: "{{ username }}"
-    #     admin_password: "{{ password }}"
-    #     public_ip_allocation_method: Dynamic
-    #     virtual_network_name: "{{ resource }}-vnet"
-    #     image:
-    #       offer: cisco-csr-1000v
-    #       publisher: cisco
-    #       sku: '16_7'
-    #       version: latest
-    #     plan:
-    #       publisher: cisco
-    #       product: cisco-csr-1000v
-    #       name: '16_7'
-    #
-    # - name: Add icmp to security group
-    #   azure_rm_securitygroup:
-    #       resource_group: "{{ resource }}"
-    #       name: "{{ resource }}01"
-    #       rules:
-              # - name: 'AllowICMP'
-              #   protocol: '*'
-              #   destination_port_range: '*'
-              #   access: Allow
-              #   priority: 200
-              #   direction: Inbound
 
-
-
-# - name: Create vnet
-#   azure_rm_virtualnetwork:
-#     name: "{{ resource }}-vnet"
-#     resource_group: "{{ resource }}"
-#     address_prefixes_cidr:
-#         - "10.0.0.0/24"
-#
-# - name: Create a subnet
-#   azure_rm_subnet:
-#     name: "{{ resource }}-subnet"
-#     virtual_network_name: "{{ resource }}-vnet"
-#     resource_group: "{{ resource }}"
-#     address_prefix_cidr: "10.0.0.0/24"
-#
 # - name: Create a public ip address
 #   azure_rm_publicipaddress:
 #     resource_group: "{{ resource }}"
 #     name: "{{ item }}-ip"
 #   with_items:
 #      - "{{ vmname }}"
-#
-# - name: create security group
-#   azure_rm_securitygroup:
-#       resource_group: "{{ resource }}"
-#       name: "{{ resource }}-security"
-#       purge_rules: yes
-#       rules:
-#           - name: 'AllowSSH'
-#             protocol: Tcp
-#             destination_port_range: 22
-#             access: Allow
-#             priority: 1000
-#             direction: Inbound
-#
+
 # - name: Create a network interface using existing security group and public IP
 #   azure_rm_networkinterface:
 #         name: "{{ item }}-nic"
@@ -163,25 +97,3 @@
 #   with_items:
 #     - "{{ vmname }}"
 #
-# - name: create a storage account
-#   azure_rm_storageaccount:
-#     resource_group: "{{ resource }}"
-#     name: "{{ item }}sa"
-#     type: Standard_LRS
-#   with_items:
-#     - "{{ vmname }}"
-#
-# - name: Create VM
-#   azure_rm_virtualmachine:
-#     resource_group: "{{ resource }}"
-#     name: "{{ item }}"
-#     vm_size: "{{ vmsize }}"
-#     admin_username: "{{ username }}"
-#     admin_password: "{{ password }}"
-#     image:
-#      offer: CentOS
-#      publisher: OpenLogic
-#      sku: '7.2'
-#      version: latest
-#   with_items:
-#     - "{{ vmname }}"
