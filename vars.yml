@@ -1,0 +1,35 @@
+site4:
+  resource: vpc.site4.win_t
+  vmsize: Standard_D2
+  username: cisco
+  password: "Cisco!234567"
+  location: eastus
+  prefix: 10.1.0.0/16
+  subnets:
+    - 10.5.0.0/24
+    - 10.5.1.0/24
+  site4_cidr:
+    - 10.5.0.0/16
+
+
+# site2:
+#   resource: site2
+#   vmsize: Standard_D2
+#   username: cisco
+#   password: "Cisco!234567"
+#   location: eastus
+#   prefix: 10.2.0.0/16
+#   subnets:
+#     - 10.2.0.0/24
+#     - 10.2.1.0/24
+#
+# site3:
+#   resource: site3
+#   vmsize: Standard_D2
+#   username: cisco
+#   password: "Cisco!234567"
+#   location: eastus
+#   prefix: 10.3.0.0/16
+#   subnets:
+#     - 10.3.0.0/24
+#     - 10.3.1.0/24

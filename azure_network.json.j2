@@ -1,0 +1,31 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+{#                                  #}
+{#    Route Tables                  #}
+{#                                  #}
+{% for cloud_network_item in vpc_item.networks %}
+{% if cloud_network_item.routes is defined %}
+      {
+          "type": "Microsoft.Network/routeTables",
+          "name": "{{ cloud_network_item.name.split('.')[0] }}_routes",
+          "apiVersion": "2017-06-01",
+          "location": "{{ cloud_vpc_data.region }}",
+          "properties": {
+              "routes": [
+{% for cloud_route_item in cloud_network_item.routes %}
+                  {
+                      "name": "{{ cloud_route_item.cidr.split('/')[0] }}",
+                      "properties": {
+                          "addressPrefix": "{{ cloud_route_item.cidr }}",
+                          "nextHopType": "VirtualAppliance",
+                          "nextHopIpAddress": "{{ private_ip_map[cloud_route_item.instance] }}"
+                      }
+                  }
+                  {% if not loop.last %},{% endif %}
+{% endfor %}{# cloud_route_item #}
+              ]
+          }
+      },
+{% endif %}
