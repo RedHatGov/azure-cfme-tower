@@ -1,0 +1,35 @@
+---
+- name: Download Ansible Tower
+  unarchive:
+    src: "http://releases.ansible.com/ansible-tower/setup/ansible-tower-setup-{{ ansible_tower_version }}.tar.gz"
+    remote_src: yes
+    dest: "{{ ansible_tower_tmp }}"
+    creates: "{{ ansible_tower_tmp }}/ansible-tower-setup-{{ ansible_tower_version }}/setup.sh"
+
+- name: Create inventory file
+  template:
+    src: inventory.j2
+    dest: "{{ ansible_tower_tmp }}/ansible-tower-setup-{{ ansible_tower_version }}/inventory"
+
+- name: Execute installation
+  shell: './setup.sh'
+  become: yes
+  args:
+    chdir: "{{ ansible_tower_tmp }}/ansible-tower-setup-{{ ansible_tower_version }}"
+
+- name: Install Tower license
+  become: yes
+  copy:
+    src: "{{ item }}"
+    dest: /etc/tower/license
+    owner: awx
+    group: awx
+    mode: 0600
+  with_first_found:
+    - files:
+        - ansible_tower.lic
+        - tower.lic
+      paths:
+        - "{{ playbook_dir }}"
+        - "{{ playbook_dir }}/licenses"
+      skip: True

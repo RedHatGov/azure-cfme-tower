@@ -1,0 +1,12 @@
+---
+- include_tasks: "instances.yml"
+  tags:
+    - instances
+
+- include_tasks: "security-groups.yml"
+  tags:
+   - security-groups
+
+- include_tasks: "networks.yml"
+  tags:
+    - networks

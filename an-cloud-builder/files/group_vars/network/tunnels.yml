@@ -1,0 +1,8 @@
+---
+tunnel_cidr: 10.255.0.0/24
+tunnel_hub: rtr1.dc1
+tunnel_asn: 65000
+tunnel_key: kbNB2jtfKqBvQkzMTurL8RNvBJDEtuNp
+site_number: "{{ interfaces.0.ip.split('.')[1] | default('') }}"
+tunnel_network: "{{ tunnel_cidr | ipsubnet(30, site_number) }}"
+tunnel_ip: "{{ tunnel_network | ipaddr(-2) }}"

@@ -1,0 +1,66 @@
+---
+- name: Create OpenStack network {{ cloud_network_dict.name }}
+  os_network:
+    state: present
+    cloud: "{{ cloud_vpc_data.cloud | default(omit) }}"
+    auth: "{{ cloud_vpc_data.auth | default(omit) }}"
+    shared: false
+    provider_network_type: "{{ cloud_network_dict.network_type | default(omit) }}"
+    provider_physical_network: "{{ cloud_network_dict.physical_network | default(omit) }}"
+    provider_segmentation_id: "{{ cloud_network_dict.segmentation_id | default(omit) }}"
+    name: "{{ cloud_network_dict.name }}"
+    external: "{{ cloud_network_dict.external | default('false') }}"
+    project: "{{ cloud_vpc_data.project | default(omit) }}"
+    validate_certs: "{{ cloud_vpc_data.validate_certs | default(omit) }}"
+  register: network
+  tags:
+    - network
+    
+- name: Create OpenStack subnet {{ cloud_network_dict.name }}_subnet
+  os_subnet:
+    state: present
+    cloud: "{{ cloud_vpc_data.cloud | default(omit) }}"
+    auth: "{{ cloud_vpc_data.auth | default(omit) }}"
+    project: "{{ cloud_vpc_data.project | default(omit) }}"
+    network_name: "{{ cloud_network_dict.name }}"
+    name: "{{ cloud_network_dict.name }}_subnet"
+    cidr: "{{ cloud_network_dict.cidr }}"
+    dns_nameservers: "{{ cloud_network_dict.dns_server_list | default([]) }}"
+    validate_certs: "{{ cloud_vpc_data.validate_certs | default(omit) }}"
+  register: subnet
+  tags:
+    - network
+
+- name: Create OpenStack router {{ cloud_network_dict.name }}_router
+  os_router:
+    state: present
+    cloud: "{{ cloud_vpc_data.cloud | default(omit) }}"
+    auth: "{{ cloud_vpc_data.auth | default(omit) }}"
+    project: "{{ cloud_vpc_data.project | default(omit) }}"
+    name: "{{ cloud_network_dict.name }}_router"
+    network: "{{ cloud_network_dict.ext_network }}"
+    validate_certs: "{{ cloud_vpc_data.validate_certs | default(omit) }}"
+    interfaces:
+      - "{{ cloud_network_dict.name }}_subnet"
+  when: (subnet.changed) and (cloud_network_dict.ext_network is defined)
+  register: router
+  ignore_errors: yes
+  tags:
+    - network
+
+- name: Set the DHCP range for subnet {{ cloud_network_dict.name }}_subnet
+  os_subnet:
+    state: present
+    cloud: "{{ cloud_vpc_data.cloud | default(omit) }}"
+    auth: "{{ cloud_vpc_data.auth | default(omit) }}"
+    network_name: "{{ cloud_network_dict.name }}"
+    name: "{{ cloud_network_dict.name }}_subnet"
+    cidr: "{{ cloud_network_dict.cidr }}"
+    validate_certs: "{{ cloud_vpc_data.validate_certs | default(omit) }}"
+    allocation_pool_start: "{{ cloud_network_dict.dhcp_range.split(',')[0] | default(omit) }}"
+    allocation_pool_end: "{{ cloud_network_dict.dhcp_range.split(',')[1] | default(omit) }}"
+  when: cloud_network_dict.dhcp_range is defined
+  register: subnet
+  tags:
+    - network
+

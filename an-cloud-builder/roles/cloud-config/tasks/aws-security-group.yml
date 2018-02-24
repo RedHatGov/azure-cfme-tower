@@ -1,0 +1,26 @@
+---
+- set_fact:
+    security_group_rule_list: []
+
+- include_tasks: "aws-security-group-rule.yml"
+  with_items: "{{ cloud_security_group_list | default([]) }}"
+  loop_control:
+    loop_var: cloud_security_group_rule
+
+
+- name: Add rule for security group {{ cloud_security_group_name }}
+  ec2_group:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    name: "{{ cloud_security_group_name }}"
+    region: "{{ cloud_vpc_data.region }}"
+    description: "{{ cloud_security_group_name }}.{{ cloud_name }}"
+    purge_rules: yes
+    state: present
+    vpc_id: "{{ vpc_id }}"
+    rules: "{{ security_group_rule_list }}"
+  register: security_group_result
+
+- name: Create Security Group mapping
+  set_fact:
+    security_group_map: "{{ security_group_map|default({}) | combine( {cloud_security_group_name: security_group_result.group_id} ) }}"

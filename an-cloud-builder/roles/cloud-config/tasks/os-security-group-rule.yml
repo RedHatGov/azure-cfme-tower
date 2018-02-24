@@ -1,0 +1,30 @@
+---
+- name: Add TCP/UDP rules for security group
+  os_security_group_rule:
+    cloud: "{{ region_dict.cloud | default(omit) }}"
+    security_group: "{{ cloud_security_group_name }}"
+    protocol: "{{ cloud_security_group_rule.proto }}"
+    port_range_min: "{{ port_item if port_item < 65535 and port_item > 0 else port_item.split('-')[0] }}"
+    port_range_max: "{{ port_item if port_item < 65535 and port_item > 0 else port_item.split('-')[1] }}"
+    remote_ip_prefix: "{{ cloud_security_group_rule.src_ip | default(omit) }}"
+    remote_group: "{{ cloud_security_group_rule.src_group | default(omit) }}"
+  with_items: "{{ cloud_security_group_rule.dst_ports | default([]) }}"
+  when: cloud_security_group_rule.proto == "tcp" or cloud_security_group_rule.proto == "udp"
+  loop_control:
+    loop_var: port_item
+  tags:
+    - acls
+
+- name: Add ICMP rules for security group
+  os_security_group_rule:
+    cloud: "{{ region_dict.cloud | default(omit) }}"
+    security_group: "{{ cloud_security_group_name }}"
+    protocol: "{{ cloud_security_group_rule.proto }}"
+    remote_ip_prefix: "{{ cloud_security_group_rule.src_ip | default(omit) }}"
+    remote_group: "{{ cloud_security_group_rule.src_group | default(omit) }}"
+  when: cloud_security_group_rule.proto == "icmp"
+  loop_control:
+    loop_var: port_item
+  tags:
+    - acls
+

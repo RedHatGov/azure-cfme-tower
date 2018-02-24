@@ -1,0 +1,162 @@
+---
+cloud_acls:
+  host-acl:
+    - { src_ip: 0.0.0.0/0, dst_ports: 22, proto: tcp }
+    - { src_ip: 0.0.0.0/0, dst_ports: 443, proto: tcp }
+    - { src_ip: 0.0.0.0/0, proto: icmp }
+  rtr-acl:
+    - { src_ip: 0.0.0.0/0, proto: all }
+vpc_list:
+  - name: "vpc1.{{ cloud_name }}"
+    provider: "{{ cloud_provider1 }}"
+    region: "{{ cloud_region1 }}"
+    project: "{{ cloud_name }}"
+    cidr: 172.17.0.0/16
+    networks:
+      - name: "mgmt.vpc1.{{ cloud_name }}"
+        cidr: "172.17.0.0/24"
+        az: "{{ cloud_region1 }}a"
+      - name: "outside.vpc1.{{ cloud_name }}"
+        cidr: "172.17.1.0/24"
+        az: "{{ cloud_region1 }}a"
+        routes:
+          - cidr: "172.18.1.0/24"
+            instance: "rtr1.{{ cloud_name }}"
+            if_index: 1
+      - name: "inside.vpc1.{{ cloud_name }}"
+        cidr: "172.17.2.0/24"
+        az: "{{ cloud_region1 }}a"
+        routes:
+          - cidr: "0.0.0.0/0"
+            instance: "rtr1.{{ cloud_name }}"
+            if_index: 2
+    instances:
+      - name: "rtr1.{{ cloud_name }}"
+        size: medium
+        image: csr-byol
+        interfaces:
+          - name: GigabitEthernet1
+            subnet: "mgmt.vpc1.{{ cloud_name }}"
+            acl: rtr-acl
+            public_ip: true
+            private_ip: 172.17.0.254
+          - name: GigabitEthernet2
+            subnet: "outside.vpc1.{{ cloud_name }}"
+            acl: rtr-acl
+            public_ip: true
+            private_ip: 172.17.1.254
+          - name: GigabitEthernet3
+            subnet: "inside.vpc1.{{ cloud_name }}"
+            acl: rtr-acl
+            private_ip: 172.17.2.254
+        tags:
+          Owner: student
+          network_os: ios
+          groups: network,routers
+        user_data: "{{ lookup('file', 'user-data/cisco-csr') }}"
+      - name: "control.{{ cloud_name }}"
+        size: medium
+        image: rhel7
+        # volume_size: 20
+        interfaces:
+          - name: eth0
+            subnet: "outside.vpc1.{{ cloud_name }}"
+            acl: host-acl
+            public_ip: true
+        tags:
+          Owner: student
+          groups: control-hosts
+  - name: "vpc2.{{ cloud_name }}"
+    provider: "{{ cloud_provider2 }}"
+    region: "{{ cloud_region2 }}"
+    project: "{{ cloud_name }}"
+    cidr: 172.18.0.0/16
+    networks:
+      - name: "mgmt.vpc2.{{ cloud_name }}"
+        cidr: "172.18.0.0/24"
+        az: "{{ cloud_region2 }}b"
+      - name: "outside.vpc2.{{ cloud_name }}"
+        cidr: "172.18.1.0/24"
+        az: "{{ cloud_region2 }}b"
+      - name: "inside.vpc2.{{ cloud_name }}"
+        cidr: "172.18.2.0/24"
+        az: "{{ cloud_region2 }}b"
+        routes:
+          - cidr: "0.0.0.0/0"
+            instance: "rtr2.{{ cloud_name }}"
+            if_index: 2
+    instances:
+      - name: "rtr2.{{ cloud_name }}"
+        size: medium
+        image: csr-byol
+        interfaces:
+          - name: GigabitEthernet1
+            subnet: "mgmt.vpc2.{{ cloud_name }}"
+            acl: rtr-acl
+            public_ip: true
+            private_ip: 172.18.0.254
+          - name: GigabitEthernet2
+            subnet: "outside.vpc2.{{ cloud_name }}"
+            acl: rtr-acl
+            public_ip: true
+            private_ip: 172.18.1.254
+          - name: GigabitEthernet3
+            subnet: "inside.vpc2.{{ cloud_name }}"
+            acl: rtr-acl
+            private_ip: 172.18.2.254
+        tags:
+          Owner: student
+          network_os: ios
+          groups: network,routers
+        user_data: "{{ lookup('file', 'user-data/cisco-csr') }}"
+      - name: "host1.{{ cloud_name }}"
+        size: micro
+        image: rhel7
+        interfaces:
+          - name: eth0
+            subnet: "inside.vpc2.{{ cloud_name }}"
+            acl: host-acl
+        tags:
+          Owner: student
+          groups: hosts
+
+cloud_image_map:
+  aws:
+    us-east-1:
+      csr-byol: ami-bcbfb9c7
+      centos7: ami-02e98f78
+      rhel7: ami-26ebbc5c
+    us-east-2:
+      csr-byol: ami-541e3931
+      rhel7: ami-0932686c
+    us-west-1:
+      csr-byol: ami-99e5d0f9
+      rhel7: ami-66eec506
+    us-west-2:
+      csr-byol: ami-e4d43d9c
+      rhel7:  ami-9fa343e7
+    ca-central-1:
+      csr-byol: ami-6269d706
+      centos7: ami-b111aad5
+      rhel7: ami-9062d0f4
+  azure:
+    rhel7:
+      offer: CentOS
+      publisher: OpenLogic
+      sku: 7.4
+      version: latest
+    csr-byol:
+      offer: 'cisco-csr-1000v'
+      publisher: 'cisco'
+      product: 'cisco-csr-1000v'
+      name: '16_7'
+      sku: '16_7'
+      version: 'latest'
+
+cloud_size_map:
+  aws:
+    micro: t2.micro
+    medium: t2.medium
+  azure:
+    micro: Standard_A0
+    medium: Standard_DS2_v2

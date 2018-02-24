@@ -1,0 +1,98 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+      {
+        "type": "Microsoft.Storage/storageAccounts",
+        "apiVersion": "2015-06-15",
+        "location": "{{ cloud_vpc_data.region }}",
+        "name": "{{ cloud_vpc_name.lower() | regex_replace('[^a-z0-9]', '') | truncate(24, False, '') }}",
+        "properties": {
+          "accountType": "Standard_LRS"
+        }
+      },
+{% for cloud_security_group_name, cloud_security_group_data in cloud_acls.iteritems() %}
+      {
+          "apiVersion": "2017-10-01",
+          "type": "Microsoft.Network/networkSecurityGroups",
+          "name": "{{ cloud_security_group_name }}",
+          "location": "{{ cloud_vpc_data.region }}",
+          "properties": {
+              "securityRules": [
+{% set rule_number = 100 %}
+{% for cloud_security_group_rule in cloud_security_group_data %}
+{% if cloud_security_group_rule.proto.upper() != 'ICMP' %}
+                  {
+                      "id": "{{ loop.index + 100 }}",
+                      "name": "rule_{{ loop.index + 100 }}",
+                      "properties": {
+                          "priority": "{{ loop.index + 100 }}",
+                          "protocol": "{{ cloud_security_group_rule.proto | regex_replace('[uU][dD][pP]', 'Udp') | regex_replace('[tT][cC][pP]', 'Tcp') | regex_replace('[iI][cC][mM][pP]', 'Icmp') | regex_replace('all', '*') }}",
+                          "access": "{{ cloud_security_group_rule.action | default('Allow') }}",
+                          "destinationPortRange": "{{ cloud_security_group_rule.dst_ports | default('22') }}",
+                          "sourcePortRange": "*",
+                          "sourceAddressPrefix": "{{ cloud_security_group_rule.src_ip | regex_replace('0.0.0.0/0', 'Internet') | regex_replace('all', 'Internet') }}",
+                          "destinationAddressPrefix": "{{ cloud_security_group_rule.dst_ip | default('*') }}",
+                          "direction": "{{ cloud_security_group_rule.direction | default('Inbound') }}"
+                      }
+                  }{% if not loop.last %},{% endif %}
+{% set rule_number = rule_number + 1 %}
+{% endif %}
+{% endfor %}
+              ]
+          }
+      },
+{% endfor %}
+      {
+         "type": "Microsoft.Network/virtualNetworks",
+         "apiVersion": "2015-06-15",
+         "location": "{{ cloud_vpc_data.region }}",
+         "name": "{{ cloud_vpc_name }}",
+         "properties": {
+           "addressSpace": {
+             "addressPrefixes": [
+               "{{ cloud_vpc_data.cidr }}"
+             ]
+           },
+           "subnets": [
+{% for cloud_network_item in vpc_item.networks %}
+              {
+               "name": "{{ cloud_network_item.name }}",
+               "properties": {
+                 "addressPrefix": "{{ cloud_network_item.cidr }}"
+                 }
+              }{% if not loop.last %},{% endif %}
+{% endfor %}
+            ]
+         }
+      },
+{% for cloud_instance_item in vpc_item.instances %}
+{% for cloud_interface_item in cloud_instance_item.interfaces %}
+      {
+         "type": "Microsoft.Network/networkInterfaces",
+         "apiVersion": "2015-06-15",
+         "name": "{{ cloud_instance_item.name }}.{{ cloud_interface_item.name }}",
+         "location": "{{ cloud_vpc_data.region }}",
+         "properties": {
+             "ipConfigurations": [
+                 {
+                     "name": "ipconfig1",
+                     "properties": {
+                         "privateIPAllocationMethod": "Dynamic",
+{% if cloud_interface_item.private_ip_address is defined %}
+                         "privateIPAddress": "{{ cloud_interface_item.private_ip_address }}",
+{% endif %}
+                         "subnet": {
+                             "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', '{{ cloud_vpc_name }}'), '/subnets/', '{{ cloud_interface_item.subnet }}')]"
+                         }
+                     }
+
+                 }
+             ],
+             "enableIPForwarding": true
+         }
+      },
+{% endfor %}
+{% endfor %}
+    ]
+}

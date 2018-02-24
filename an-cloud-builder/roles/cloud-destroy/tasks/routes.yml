@@ -1,0 +1,6 @@
+---
+- include_tasks: "{{ cloud_vpc_data.provider }}-routes.yml"
+  vars:
+    cloud_route_data: "{{ vpc_item.routes | default([]) }}"
+  tags:
+    - routes

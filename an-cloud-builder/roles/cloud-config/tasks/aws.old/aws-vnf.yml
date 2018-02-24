@@ -1,0 +1,77 @@
+---
+- block:
+  - name: Get the subnet ID for subnet {{ cloud_network_item.name }}
+    ec2_vpc_subnet_facts:
+      aws_access_key: "{{ aws_access_key | default(omit) }}"
+      aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+      region: "{{ cloud_vpc_data.region }}"
+      filters:
+        vpc-id: "{{ vpc_id }}"
+        "tag:Name": "{{ cloud_network_item.name }}"
+    register: subnet_facts
+
+  - name: Set Subnet ID
+    set_fact:
+      subnet_id: "{{ subnet_facts.subnets[0].id }}"
+    failed_when: subnet_facts.subnets[0] is not defined
+
+  # - name: Get instance ID for instance {{ cloud_network_item.vnf_instance }}
+  #   ec2_remote_facts:
+  #     aws_access_key: "{{ aws_access_key | default(omit) }}"
+  #     aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+  #     region: "{{ cloud_vpc_data.region }}"
+  #     filters:
+  #       vpc-id: "{{ vpc_id }}"
+  #       "tag:Name": "{{ cloud_network_item.vnf_instance }}"
+  #   register: instance_facts
+  #   failed_when: vpc_net_facts.vpcs[0] is not defined
+  #
+  # - name: Set Instance ID
+  #   set_fact:
+  #     instance_id: "{{ instance_facts.instances[0].id }}"
+  #   when: instance_facts.instances[0] is defined
+
+  - name: Create interface for instance {{ cloud_network_item.vnf_instance }} ID {{ instance_id }} in network {{ subnet_id }}
+    ec2_eni:
+      aws_access_key: "{{ aws_access_key | default(omit) }}"
+      aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+      instance_id: "{{ instance_facts.instance_id }}"
+      attached: True
+      region: "{{ cloud_vpc_data.region }}"
+      device_index: "{{ cloud_network_item.vnf_index | default(omit) }}"
+      private_ip_address: "{{ cloud_network_item.inside_ip }}"
+      subnet_id: "{{ subnet_id }}"
+      state: present
+      delete_on_termination: true
+      security_groups: default
+    register: nat_interface
+
+  - name: Disable Source/Dest check on interface {{ nat_interface.interface.id }}
+    ec2_eni:
+      aws_access_key: "{{ aws_access_key | default(omit) }}"
+      aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+      instance_id: "{{ instance_id }}"
+      eni_id: "{{ nat_interface.interface.id }}"
+      region: "{{ cloud_vpc_data.region }}"
+      subnet_id: "{{ subnet_id }}"
+      source_dest_check: false
+      state: present
+      delete_on_termination: true
+
+  - name: Set up default route for subnet {{ cloud_network_item.name }} to instance {{ cloud_network_item.vnf_instance }}
+    ec2_vpc_route_table:
+      aws_access_key: "{{ aws_access_key | default(omit) }}"
+      aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+      vpc_id: "{{ vpc_id }}"
+      region: "{{ cloud_vpc_data.region }}"
+      tags:
+        Name: "{{ cloud_network_item.name | default(cloud_network_item.cidr) }}"
+      subnets:
+        - "{{ subnet_id }}"
+      routes:
+        - dest: 0.0.0.0/0
+          interface_id: "{{ nat_interface.interface.id }}"
+    register: private_route_table
+  when: cloud_network_item.vnf_instance is defined
+  tags:
+    - cloud-vnfs

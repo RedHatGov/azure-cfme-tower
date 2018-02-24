@@ -1,0 +1,20 @@
+---
+- name: Create Azure Resource Group {{ cloud_vpc_data.project }} in {{ cloud_vpc_data.region }}
+  azure_rm_resourcegroup:
+    location: "{{ cloud_vpc_data.region }}"
+    name: "{{ cloud_vpc_name }}"
+    state: present
+
+- name: Create Azure virtual network
+  azure_rm_virtualnetwork:
+    name: "{{ cloud_vpc_name }}_vnet"
+    resource_group: "{{ cloud_vpc_name }}"
+    location: "{{ cloud_vpc_data.region }}"
+    address_prefixes_cidr:
+      - "{{ cloud_vpc_data.cidr }}"
+    dns_servers: "{{ cloud_vpc_data.dns_servers | default(omit) }}"
+
+- include: "{{ role_path }}/tasks/azure-network.yml"
+  with_items: "{{ cloud_network_data | default([]) }}"
+  loop_control:
+    loop_var: cloud_network_item

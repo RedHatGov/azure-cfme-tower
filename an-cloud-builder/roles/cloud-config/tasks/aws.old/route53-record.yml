@@ -1,0 +1,13 @@
+---
+- name: Add DNS A record for instance {{ cloud_instance_item.name }}.{{ cloud_dns_domain }} to {{ instance_ip_address }}
+  route53:
+   aws_access_key: "{{ aws_access_key | default(omit) }}"
+   aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+   command: create
+   overwrite: yes
+   zone: "{{ cloud_dns_zone }}"
+   record: "{{ cloud_instance_item.name }}.{{ cloud_dns_domain }}"
+   type: A
+   value: "{{ instance_ip_address }}"
+   ttl: 60
+#     wait: yes

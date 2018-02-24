@@ -1,0 +1,88 @@
+---
+cloud_acls:
+  host-acl:
+    - { src_ip: 0.0.0.0/0, dst_ports: 22, proto: tcp }
+    - { src_ip: 0.0.0.0/0, dst_ports: 443, proto: tcp }
+    - { src_ip: 0.0.0.0/0, proto: icmp }
+  rtr-acl:
+    - { src_ip: 0.0.0.0/0, proto: all }
+vpc_list:
+  - name: "vpc.{{ cloud_name }}"
+    provider: "{{ cloud_provider }}"
+    region: "{{ cloud_region }}"
+    project: "{{ cloud_name }}"
+    cidr: "{{ cloud_cidr }}"
+    networks:
+      - name: "outside.{{ cloud_name }}"
+        cidr: "{{ cloud_cidr | ipsubnet(24, 0) }}"
+        az: "{{ cloud_region }}a"
+        # routes:
+        #   - cidr: "10.0.0.0/8"
+        #     instance: "rtr1.{{ cloud_name }}"
+        #     if_index: 0
+    instances:
+      - name: "rtr1.{{ cloud_name }}"
+        size: medium
+        image: csr-byol
+        interfaces:
+          - name: GigabitEthernet1
+            subnet: "outside.{{ cloud_name }}"
+            acl: rtr-acl
+            public_ip: true
+            private_ip: "{{ cloud_cidr | ipsubnet(24, 0) | ipaddr(-2) | ipaddr('address') }}"
+        tags:
+          Owner: "{{ cloud_name }}"
+          network_os: ios
+          groups: network,routers,hub_routers
+        user_data: "{{ lookup('file', 'csr.user_data') }}"
+      - name: "control.{{ cloud_name }}"
+        size: medium
+        image: rhel7
+        volume_size: 20
+        interfaces:
+          - name: eth0
+            subnet: "outside.{{ cloud_name }}"
+            acl: host-acl
+            public_ip: true
+        tags:
+          groups: hosts,control_hosts
+cloud_image_map:
+  aws:
+    us-east-1:
+      csr-byol: ami-bcbfb9c7
+      centos7: ami-02e98f78
+      rhel7: ami-c998b6b2
+    us-east-2:
+      csr-byol: ami-541e3931
+      rhel7: ami-0932686c
+    us-west-1:
+      csr-byol: ami-99e5d0f9
+      rhel7: ami-66eec506
+    us-west-2:
+      csr-byol: ami-e4d43d9c
+      rhel7:  ami-9fa343e7
+    ca-central-1:
+      csr-byol: ami-6269d706
+      centos7: ami-b111aad5
+      rhel7: ami-9062d0f4
+  azure:
+    rhel7:
+      offer: "RHEL"
+      publisher: "RedHat"
+      sku: "7-RAW"
+      version: latest
+    csr-byol:
+      offer: 'cisco-csr-1000v'
+      publisher: 'cisco'
+      product: 'cisco-csr-1000v'
+      name: '16_7'
+      sku: '16_7'
+      version: 'latest'
+
+cloud_size_map:
+  aws:
+    micro: t2.micro
+    medium: t2.medium
+  azure:
+    micro: Standard_A0
+    medium: Standard_D3_v2

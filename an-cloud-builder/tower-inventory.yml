@@ -1,0 +1,108 @@
+---
+- name: Add hosts to Tower inventory
+  hosts: localhost
+  gather_facts: no
+  vars:
+    inventory_root: "{{ playbook_dir }}/inventory"
+    key_root: "{{ playbook_dir }}/keys"
+    cloud_instance: "{{ cloud_model.split('.')[0] }}"
+    cloud_project: "{{ lookup('env','USER') }}"
+    cloud_provider: 'aws'
+    cloud_name: "{{ cloud_instance }}.{{ cloud_project }}"
+    cloud_inventory_file: "{{ inventory_root }}/{{ cloud_project }}/{{ cloud_instance }}.yml"
+    tower_hostname: hostvars[control].ansible_host
+    tower_username: admin
+    tower_password: "{{ cloud_password }}"
+
+  tasks:
+    - set_fact:
+        cloud_provider: "{{ opt_provider_region.split('/')[0] }}"
+        cloud_region: "{{ opt_provider_region.split('/')[1] }}"
+      when: opt_provider_region is defined
+
+    - include_vars:
+        file: "{{ inventory_root }}/{{ cloud_project }}/{{ cloud_instance }}.yml"
+        name: cloud_inventory
+
+    - debug: var=cloud_inventory
+
+    - name: Add tower host
+      tower_host:
+        name: "{{ item.key }}"
+        inventory: "{{ cloud_project }}"
+        state: present
+        variables: "{{ item.value }}"
+      with_dict: "{{ cloud_inventory.all.hosts }}"
+
+    # - name: Add hosts to inventory
+    #   add_host:
+    #
+    #   with_dict: "{{ cloud_inventory.all.hosts }}"
+
+    # - set_fact:
+    #     hostname: "{{ inventory_hostname if (use_full_hostname|bool) else inventory_hostname.split('.')[0] }}"
+    #
+    # - debug: var=hostvars[inventory_hostname]
+    #
+    # - name: Find tower.cfg
+    #   set_fact:
+    #     tower_config_file: "{{ item }}"
+    #   with_first_found:
+    #     - files:
+    #       - "{{ inventory_root }}/{{ cloud_project }}/tower_cli.cfg"
+    #       - '~/.tower_cli.cfg'
+    #       - /etc/awx/tower_cli.cfg
+
+    # - name: Add tower inventory
+    #   tower_inventory:
+    #     name: "{{ cloud_project }}"
+    #     organization: "ismc"
+    #     state: present
+    #   delegate_to: localhost
+    #   run_once: yes
+
+    # - debug: var=hostvars[inventory_hostname]
+
+    # - name: Add tower group
+    #   tower_group:
+    #     name: "{{ item.key }}"
+    #     inventory: "{{ cloud_project }}"
+    #     state: present
+    #   with_dict: "{{ groups }}"
+    #   when: item.key != 'all'
+    #   delegate_to: localhost
+    #   run_once: yes
+    #
+    # - name: Check to see which group_vars file exists
+    #   stat:
+    #     path: "{{ inventory_root }}/host_vars/{{ item.key }}.yml"
+    #   register: stat_results
+    #   with_dict: "{{ groups }}"
+    #   delegate_to: localhost
+    #   run_once: yes
+    #
+    # - debug: var=stat_results
+    #
+    # - name: Add tower group variables
+    #   tower_group:
+    #     name: "{{ item.item.key }}"
+    #     inventory: "{{ cloud_project }}"
+    #     state: present
+    #     variables: "{{ lookup('file', item.invocation.module_args.path ) }}"
+    #   when: item.stat.exists
+    #   with_items: "{{ stat_results.results }}"
+    #   delegate_to: localhost
+
+    # - name: Add tower host
+    #   tower_host:
+    #     name: "{{ item.key }}"
+    #     inventory: "{{ cloud_project }}"
+    #     state: present
+    #     variables: "{{ item.value }}"
+    #   with_dict: "{{ cloud_inventory.all.hosts }}"
+
+
+    # - name: Add host to group
+    #   command: "tower-cli host associate --host {{ item.key|quote }} --group {{ item|quote }}"
+    #   with_items: "{{ item.value.groups.split(',') }}"
+    #   delegate_to: localhost

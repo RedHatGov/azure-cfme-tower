@@ -1,0 +1,7 @@
+---
+- name: Destroy Azure Resource Group {{ cloud_vpc_data.project }} in {{ cloud_vpc_data.region }}
+  azure_rm_resourcegroup:
+    location: "{{ cloud_vpc_data.region }}"
+    name: "{{ cloud_vpc_name }}"
+    force: yes
+    state: absent

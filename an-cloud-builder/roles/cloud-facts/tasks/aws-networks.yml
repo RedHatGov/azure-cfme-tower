@@ -1,0 +1,38 @@
+---
+- name: Get the VPC ID for {{ cloud_vpc_name }}
+  ec2_vpc_net_facts:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    region: "{{ cloud_vpc_data.region }}"
+    filters:
+      "tag:Name": "{{ cloud_vpc_name }}"
+  register: vpc_net_facts
+
+- name: Set VPC ID
+  set_fact:
+    vpc_id: "{{ vpc_net_facts.vpcs[0].id }}"
+  failed_when: vpc_net_facts.vpcs[0] is not defined
+
+- name: Get Subnet Facts
+  ec2_vpc_subnet_facts:
+    region: "{{ cloud_vpc_data.region }}"
+    filters:
+      vpc-id: "{{ vpc_id }}"
+  register: subnet_facts
+
+- name: Create Subnet Mapping
+  set_fact:
+    cloud_subnet_facts: "{{ cloud_subnet_facts|default({}) | combine( {item.tags.Name: item} ) }}"
+  with_items: "{{ subnet_facts.subnets }}"
+
+- name: Get Security Group facts
+  ec2_group_facts:
+    region: "{{ cloud_vpc_data.region }}"
+    filters:
+      vpc-id: "{{ vpc_id }}"
+  register: security_group_facts
+
+- name: Create Security Group mapping
+  set_fact:
+    cloud_security_group_map: "{{ cloud_security_group_map|default({}) | combine( {item.group_name: item} ) }}"
+  with_items: "{{ security_group_facts.security_groups }}"

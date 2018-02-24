@@ -1,0 +1,8 @@
+dns_domain_name: example.net
+
+dns_name_servers:
+  - 8.8.8.8 
+  - 8.8.4.4 
+
+dns_domain_search:
+  - example.net

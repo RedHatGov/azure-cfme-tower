@@ -1,0 +1,18 @@
+---
+- set_fact:
+    rule_proto: "{{ cloud_security_group_rule.proto | regex_replace('[uU][dD][pP]', 'udp') | regex_replace('[tT][cC][pP]', 'tcp') | regex_replace('[iI][cC][mM][pP]', 'icmp') }}"
+    rule_from_port: "{{ cloud_security_group_rule.dst_ports | default('') }}"
+    rule_to_port: "{{ cloud_security_group_rule.dst_ports | default('') }}"
+
+- set_fact:
+    rule_from_port: 8
+    rule_to_port: -1
+  when: rule_proto == 'icmp'
+
+- set_fact:
+    rule_from_port: -1
+    rule_to_port: -1
+  when: rule_proto == 'all'
+
+- set_fact:
+    security_group_rule_list: "{{ security_group_rule_list + [ { 'proto': rule_proto, 'cidr_ip': cloud_security_group_rule.src_ip, 'from_port': rule_from_port, 'to_port': rule_to_port } ] }}"

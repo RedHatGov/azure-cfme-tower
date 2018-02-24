@@ -1,0 +1,5 @@
+---
+- include: "{{ role_path }}/tasks/azure-security-group.yml cloud_security_group_name={{ cloud_security_group_item }} cloud_security_group_list={{ cloud_security_group_data[cloud_security_group_item] }}"
+  with_items: "{{ cloud_security_group_data.keys() | default([]) }}"
+  loop_control:
+    loop_var: cloud_security_group_item

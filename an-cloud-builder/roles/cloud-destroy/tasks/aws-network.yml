@@ -1,0 +1,23 @@
+---
+- name: Destroy route table for subnet {{ cloud_network_item.name }}
+  ec2_vpc_route_table:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    state: absent
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ cloud_vpc_data.region }}"
+    tags:
+      Name: "{{ cloud_network_item.name }}"
+
+- name: Destroy AWS region subnet {{ cloud_network_item.name }}
+  ec2_vpc_subnet:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    state: absent
+    vpc_id: "{{ vpc_id }}"
+    cidr: "{{ cloud_network_item.cidr }}"
+    region: "{{ cloud_vpc_data.region }}"
+    az: "{{ cloud_network_item.az }}"
+    resource_tags:
+      Name: "{{ cloud_network_item.name | default('tenant_network_item.cidr') }}"
+      tenant: "{{ cloud_vpc_data.project }}"

@@ -1,0 +1,35 @@
+---
+- name: Create AWS region subnet {{ cloud_network_item.name }}
+  ec2_vpc_subnet:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    state: present
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    cidr: "{{ cloud_network_item.cidr }}"
+    region: "{{ cloud_vpc_data.region }}"
+    az: "{{ cloud_network_item.az }}"
+    resource_tags:
+      Name: "{{ cloud_network_item.name | default('tenant_network_item.cidr') }}"
+      tenant: "{{ cloud_vpc_data.project }}"
+  register: subnet_result
+
+- name: Create Subnet Mapping
+  set_fact:
+    subnet_map: "{{ subnet_map|default({}) | combine( {cloud_network_item.name: subnet_result.subnet.id} ) }}"
+
+- name: Create route table for subnet {{ cloud_network_item.name }}
+  ec2_vpc_route_table:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    state: present
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    region: "{{ cloud_vpc_data.region }}"
+    purge_routes: false
+    tags:
+      Name: "{{ cloud_network_item.name }}"
+    subnets:
+      - "{{ subnet_result.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw_result.gateway_id }}"
+  register: public_route_table

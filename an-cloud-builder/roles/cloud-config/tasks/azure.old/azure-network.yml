@@ -1,0 +1,7 @@
+---
+- name: Create Azure subnet
+  azure_rm_subnet:
+    name: "{{ cloud_network_item.name | default('tenant_network_item.cidr') }}"
+    virtual_network_name: "{{ cloud_vpc_name }}_vnet"
+    resource_group: "{{ cloud_vpc_name }}"
+    address_prefix_cidr: "{{ cloud_network_item.cidr }}"

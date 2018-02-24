@@ -1,0 +1,133 @@
+---
+- name: Read in the cloud inventory
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    model_dir: "{{ playbook_dir }}/models"
+    inventory_root: "{{ playbook_dir }}/inventory"
+    key_root: "{{ playbook_dir }}/keys"
+    cloud_instance: "{{ cloud_model.split('.')[0] }}"
+    cloud_project: "{{ lookup('env','USER') }}"
+    cloud_provider: 'aws'
+    cloud_region: 'us-east-1'
+    cloud_user: ec2-user
+    cloud_name: "{{ cloud_instance }}.{{ cloud_project }}"
+    cloud_key_name: "{{ cloud_name }}"
+    cloud_private_key_file: "{{ key_root }}/{{ cloud_key_name }}.key"
+    cloud_public_key_file: "{{ key_root }}/{{ cloud_key_name }}.key.pub"
+    cloud_cidr: '10.1.0.0/16'
+    default_group_vars:
+      ios:
+        ansible_connection: network_cli
+      junos:
+        ansible_connection: netconf
+
+
+  tasks:
+    - assert:
+        that:
+          - cloud_model is defined
+        msg: "You must specify a model, e.g. -e 'cloud_model=csr-lab1.yml'"
+
+    - set_fact:
+        cloud_provider: "{{ opt_provider_region.split('/')[0] }}"
+        cloud_region: "{{ opt_provider_region.split('/')[1] }}"
+      when: opt_provider_region is defined
+
+    - name: Find the cloud model
+      set_fact:
+        cloud_model_file: "{{ item }}"
+      with_first_found:
+        - files:
+            - "{{ cloud_model }}.yml"
+            - "{{ cloud_model }}.yaml"
+            - "{{ cloud_model }}"
+          paths:
+            - "{{ model_dir }}"
+            - "{{ playbook_dir }}"
+            - "{{ inventory_dir }}"
+
+    - name: Read in the Cloud Model {{ cloud_model }}
+      include_vars:
+        file: "{{ cloud_model_file }}"
+
+    - include_role:
+        name: cloud-facts
+      vars:
+        - cloud_vpc_name: "{{ vpc_item.name }}"
+        - cloud_vpc_data: "{{ vpc_item }}"
+      with_items: "{{ vpc_list | default([]) }}"
+      tasks_from: instances
+      loop_control:
+        loop_var: vpc_item
+      delegate_to: localhost
+      run_once: yes
+
+    - set_fact:
+        inventory_dict:
+          all:
+            hosts: "{{ inventory_host_dict }}"
+            vars:
+              cloud_instance: "{{ cloud_instance }}"
+              cloud_project: "{{ cloud_project }}"
+              cloud_provider: "{{ cloud_provider }}"
+              cloud_region: "{{ cloud_region }}"
+              cloud_user: "{{ cloud_user }}"
+              cloud_key_name: "{{ cloud_key_name }}"
+              cloud_model: "{{ cloud_model }}"
+              cloud_name: "{{ cloud_name }}"
+              cloud_password: "Ansibull{{ lookup('password', '/tmp/passwordfile chars=digits length=4') }}"
+
+    - debug: var=inventory_dict
+
+    - name: Create the inventory directory
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: 0755
+      with_items:
+        - "{{ inventory_root }}"
+        - "{{ inventory_root }}/{{ cloud_project }}"
+        - "{{ inventory_root }}/{{ cloud_project }}/host_vars"
+        - "{{ inventory_root }}/{{ cloud_project }}/group_vars"
+
+    - name: Create the inventory file on the local node
+      template:
+        src: local-inventory.j2
+        dest: "{{ inventory_root }}/{{ cloud_project }}/{{ cloud_instance }}"
+
+    # - name: Create the inventory file on the local node
+    #   copy:
+    #     content: "{{ inventory_dict | to_nice_yaml }}"
+    #     dest: "{{ inventory_root }}/{{ cloud_project }}/{{ cloud_instance }}"
+
+    - name: Copy group_vars
+      copy:
+        src: group_vars
+        dest: "{{ inventory_root }}/{{ cloud_project }}"
+
+# - name: Create vars files
+#   hosts: "{{ cloud_name }}"
+#   gather_facts: no
+#   vars:
+#     inventory_root: "{{ playbook_dir }}/inventory"
+#     model_dir: "{{ playbook_dir }}/models"
+#     cloud_instance: "{{ cloud_model.split('.')[0] }}"
+#     cloud_project: "{{ lookup('env','USER') }}"
+#     cloud_name: "{{ cloud_instance }}.{{ cloud_project }}"
+#
+#   tasks:
+#     - name: Create the {{ inventory_hostname }} directory
+#       file:
+#         path: "{{ inventory_root }}/{{ cloud_project }}/host_vars/{{ inventory_hostname }}"
+#         state: directory
+#         mode: 0755
+#       delegate_to: localhost
+#
+#     - name: Create the interfaces file for {{ inventory_hostname }}
+#       template:
+#         src: local-interfaces.j2
+#         dest: "{{ inventory_root }}/{{ cloud_project }}/host_vars/{{ inventory_hostname }}/interfaces.yml"
+#       delegate_to: localhost
+#       when: interfaces is defined

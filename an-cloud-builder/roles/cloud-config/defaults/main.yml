@@ -1,0 +1,56 @@
+---
+ansible_ssh_private_key_file: "keys/{{ cloud_name }}_key"
+ansible_ssh_public_key_file: "keys/{{ cloud_name }}_key.pub"
+cloud_image_map:
+  aws:
+    us-east-1:
+      csr-byol: ami-bcbfb9c7
+      rhel7: ami-c998b6b2
+      pan-demo1: ami-12c89a69
+      eos-eft: ami-b871f4c2
+      f5-25-good: ami-18ab2462
+    us-east-2:
+      csr-byol: ami-541e3931
+      rhel7: ami-0932686c
+    us-west-1:
+      csr-byol: ami-99e5d0f9
+      rhel7: ami-66eec506
+    us-west-2:
+      csr-byol: ami-e4d43d9c
+      rhel7:  ami-9fa343e7
+    ca-central-1:
+      csr-byol: ami-6269d706
+      rhel7: ami-9062d0f4
+  azure:
+    eastus:
+      rhel7: { offer: CentOS, publisher: OpenLogic, sku: 7.4, version: latest }
+      csr-byol: { offer: cisco-csr-1000v, publisher: cisco, product: cisco-csr-1000v, name: csr-azure-byol, sku: csr-azure-byol, version: latest }
+    westus:
+      rhel7: { offer: CentOS, publisher: OpenLogic, sku: 7.4, version: latest }
+      csr-byol: { offer: cisco-csr-1000v, publisher: cisco, product: cisco-csr-1000v, name: csr-azure-byol, sku: csr-azure-byol, version: latest }
+
+cloud_instance_map:
+  aws:
+    us-east-1:
+      micro: t2.micro
+      medium: t2.medium
+      pan-small: m4.xlarge
+    us-east-2:
+      micro: t2.micro
+      medium: t2.medium
+    us-west-1:
+      micro: t2.micro
+      medium: t2.medium
+    us-west-2:
+      micro: t2.micro
+      medium: t2.medium
+    ca-central-1:
+      micro: t2.micro
+      medium: t2.medium
+  azure:
+    eastus:
+      micro: Standard_A0
+      medium: Standard_A2_v2
+    westus:
+      micro: Standard_A0
+      medium: Standard_A2_v2
