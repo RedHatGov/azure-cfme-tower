@@ -1,0 +1,39 @@
+---
+resource: vpc.site4.win_t
+router_hostname: site4-router
+vmsize: Standard_D2
+username: cisco
+password: "Cisco!234567"
+location: eastus
+vpc_cidr: 10.5.0.0/16
+outside_cidr: 10.5.0.0/24
+inside_cidr: 10.5.1.0/24
+csr_outside_ip: 10.5.0.254
+csr_inside_ip: 10.5.1.254
+host_ip: 10.5.1.10
+tunnel_ip: 172.24.0.6/24
+ssh_public_key: 'ssh-rsa <Key Here>'
+site4_cidr:
+  - 10.5.0.0/16
+
+# site5:
+#   resource: site2
+#   vmsize: Standard_D2
+#   username: cisco
+#   password: "Cisco!234567"
+#   location: eastus
+#   prefix: 10.2.0.0/16
+#   subnets:
+#     - 10.2.0.0/24
+#     - 10.2.1.0/24
+#
+# site6:
+#   resource: site3
+#   vmsize: Standard_D2
+#   username: cisco
+#   password: "Cisco!234567"
+#   location: eastus
+#   prefix: 10.3.0.0/16
+#   subnets:
+#     - 10.3.0.0/24
+#     - 10.3.1.0/24
