@@ -12,7 +12,7 @@ site4:
     - 10.5.0.0/16
 
 
-# site2:
+# site5:
 #   resource: site2
 #   vmsize: Standard_D2
 #   username: cisco
@@ -23,7 +23,7 @@ site4:
 #     - 10.2.0.0/24
 #     - 10.2.1.0/24
 #
-# site3:
+# site6:
 #   resource: site3
 #   vmsize: Standard_D2
 #   username: cisco
