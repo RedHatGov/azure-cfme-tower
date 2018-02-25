@@ -244,3 +244,28 @@
                 - "[resourceId('Microsoft.Network/networkInterfaces', 'csr_inside_interface')]"
 
     - debug: var=hostvars[inventory_hostname]
+
+    - name: Set The CSR's Public IP Address
+      set_fact: csr_public_ip_address="{{ hostvars[inventory_hostname]["csr_public_ip"]["state"].ip_address }}"
+
+    - name: Add new router to inventory
+      add_host:
+        name: "{{ router_hostname }}"
+        groups: new_router
+        ansible_host: "{{ csr_public_ip_address }}"
+        ansible_user: "{{username}}"
+        ansible_password: "{{password}}"
+      tags:
+        - provision
+
+- name: Add new site to network
+  hosts: new_router
+  connection: local
+  gather_facts: no
+
+  vars:
+    ansible_network_os: ios
+
+  tasks:
+    - include_role:
+        name: network_dmvpn
