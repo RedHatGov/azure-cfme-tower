@@ -1,0 +1,66 @@
+---
+- name: Deference the instance facts
+  set_fact:
+    instance_facts_item: "{{ instance_facts_dict[cloud_instance_item.name] }}"
+
+- name: Create interfaces list
+  set_fact:
+    instance_interfaces: []
+    instance_groups: "{{ instance_facts_item.tags.groups | regex_replace('\\s*', '') }}"
+
+- include_tasks: "aws-interface.yml"
+  with_indexed_items: "{{ cloud_instance_item.interfaces | default([]) }}"
+  loop_control:
+    loop_var: cloud_interface_item
+
+- name: Set instance facts
+  set_fact:
+    instance_ip_address: "{{ instance_facts_item.public_ip_address | default(instance_facts_item.private_ip_address, true) }}"
+    instance_group_list: "{{ instance_groups.split(',')|default([]) + [ cloud_name ] }}"
+    instance_name: "{{ instance_facts_item.tags.Name.split('.')[0] }}.{{ cloud_instance }}"
+
+- name: Add ansible_network_os group for network elements
+  set_fact:
+    instance_group_list: "{{ instance_group_list + [ instance_facts_item.tags.network_os ] }}"
+  when: instance_facts_item.tags.network_os is defined
+
+- name: Add host to inventory
+  add_host:
+      hostname: "{{ instance_name }}"
+      ansible_host: "{{ instance_ip_address }}"
+      ansible_user: "{{ cloud_instance_item.ansible_user | default(cloud_user) }}"
+      ansible_network_os: "{{ cloud_instance_item.tags.network_os | default('') }}"
+      groups: "{{ instance_group_list | join(',') }}"
+      private_ip_address: "{{ instance_facts_item.private_ip_address }}"
+      interfaces: "{{ instance_interfaces }}"
+
+- name: Create inventory host entry
+  set_fact:
+    host_entry:
+      hostname: "{{ instance_name }}"
+      ansible_host: "{{ instance_ip_address }}"
+      ansible_user: "{{ cloud_instance_item.ansible_user | default(cloud_user) }}"
+      ansible_network_os: "{{ cloud_instance_item.tags.network_os | default('') }}"
+      groups: "{{ instance_group_list | join(',') }}"
+      private_ip_address: "{{ instance_facts_item.private_ip_address }}"
+      # interfaces: "{{ instance_interfaces }}"
+      # ansible_ssh_private_key_file: "{{ cloud_private_key_file }}"
+
+- name: Add host entry to the host_interfaces_dict
+  set_fact:
+      host_interfaces_dict: "{{ host_interfaces_dict | combine({ instance_name: instance_interfaces }) }}"
+
+- name: Add host entry to the host_inventory_dict
+  set_fact:
+      host_inventory_dict: "{{ host_inventory_dict | combine({ instance_name: host_entry }) }}"
+
+- debug: var=instance_group_list
+
+- name: Add host entry to the group_inventory_dict
+  set_fact:
+      group_inventory_dict: "{{ group_inventory_dict | combine({ group_item: [instance_name] + group_inventory_dict[group_item]|default([]) }) }}"
+  with_items: "{{ instance_group_list }}"
+  loop_control:
+    loop_var: group_item
+
+- debug: var=group_inventory_dict

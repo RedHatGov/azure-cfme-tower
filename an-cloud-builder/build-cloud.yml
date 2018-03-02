@@ -1,0 +1,183 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    model_dir: "{{ playbook_dir }}/models"
+    inventory_root: "{{ playbook_dir }}/inventory"
+    key_root: "{{ playbook_dir }}/keys"
+    cloud_instance: "{{ cloud_model.split('.')[0] }}"
+    cloud_project: "{{ lookup('env','USER') }}"
+    cloud_provider: 'aws'
+    cloud_region: 'us-east-1'
+    cloud_user: ec2-user
+    cloud_name: "{{ cloud_instance }}.{{ cloud_project }}"
+    cloud_key_name: "{{ opt_key_name | default(cloud_project) }}"
+    cloud_private_key_file: "{{ key_root }}/{{ cloud_key_name }}.key"
+    cloud_public_key_file: "{{ key_root }}/{{ cloud_key_name }}.key.pub"
+    cloud_inventory_file: "{{ inventory_root }}/{{ cloud_project }}/{{ cloud_instance }}.yml"
+    cloud_password: "Ansibull{{ lookup('password', '/dev/null chars=digits length=4') }}"
+    cloud_cidr: '10.1.0.0/16'
+    interfaces_in_inventory: no
+    default_group_vars:
+      ios:
+        ansible_connection: network_cli
+      junos:
+        ansible_connection: netconf
+
+  tasks:
+    - assert:
+        that:
+          - cloud_model is defined
+        msg: "You must specify a model, e.g. -e 'cloud_model=csr-lab1.yml'"
+
+    - set_fact:
+        cloud_provider: "{{ opt_provider_region.split('/')[0] }}"
+        cloud_region: "{{ opt_provider_region.split('/')[1] }}"
+      when: opt_provider_region is defined
+
+    - name: Check to see if cloud_vars file exists
+      stat:
+        path: "{{ cloud_inventory_file }}"
+      register: stat_results
+
+    - name: Read in the existing inventory file
+      include_vars:
+        file: "{{ cloud_inventory_file }}"
+        name: cloud_inventory
+      when: stat_results.stat.exists
+
+    - name: Set cloud_password to previously generated value
+      set_fact:
+        cloud_password: "{{ cloud_inventory.all.vars.cloud_password }}"
+      when: cloud_inventory is defined
+
+    - block:
+        - name: Create the keys directory
+          file:
+            path: "{{ key_root }}"
+            state: directory
+            mode: 0755
+
+        - name: Generate SSH keys
+          shell: ssh-keygen -b 2048 -t rsa -f "{{ cloud_private_key_file }}" -I "{{ cloud_name }}" -q -N ""
+          args:
+            creates: "{{ cloud_private_key_file }}"
+          delegate_to: localhost
+          run_once: yes
+
+        # - openssl_privatekey:
+        #     path: "{{ cloud_private_key_file }}"
+        #     type: RSA
+        #     size: 2048
+        #   register: key_results
+        #
+        # - openssl_publickey:
+        #     path: "{{ cloud_public_key_file }}"
+        #     privatekey_path: "{{ cloud_private_key_file }}"
+        #     format: OpenSSH
+        #     force: no
+        #   when: key_results.changed
+        #   register: public_key_results
+
+        - set_fact:
+            cloud_public_key_material: "{{ lookup('file', cloud_public_key_file) }}"
+      when: cloud_public_key_material is not defined
+
+    - name: Find the cloud model
+      set_fact:
+        cloud_model_file: "{{ item }}"
+      with_first_found:
+        - files:
+            - "{{ cloud_model }}.yml"
+            - "{{ cloud_model }}.yaml"
+            - "{{ cloud_model }}"
+          paths:
+            - "{{ model_dir }}"
+            - "{{ playbook_dir }}"
+            - "{{ inventory_dir }}"
+
+    - name: Read in the Cloud Model {{ cloud_model }}
+      include_vars:
+        file: "{{ cloud_model_file }}"
+
+    - include_role:
+        name: cloud-config
+      vars:
+        - cloud_vpc_name: "{{ vpc_item.name }}"
+        - cloud_vpc_data: "{{ vpc_item }}"
+      with_items: "{{ vpc_list | default([]) }}"
+      loop_control:
+        loop_var: vpc_item
+      run_once: yes
+      tags:
+        - build
+
+    - set_fact:
+        host_interfaces_dict: {}
+        host_inventory_dict: {}
+        group_inventory_dict: {}
+      tags:
+        - facts
+
+    - include_role:
+        name: cloud-facts
+      vars:
+        - cloud_vpc_name: "{{ vpc_item.name }}"
+        - cloud_vpc_data: "{{ vpc_item }}"
+      with_items: "{{ vpc_list | default([]) }}"
+      tasks_from: instances
+      loop_control:
+        loop_var: vpc_item
+      delegate_to: localhost
+      run_once: yes
+      tags:
+        - facts
+
+    - name: Create the inventory directory
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: 0755
+      with_items:
+        - "{{ inventory_root }}"
+        - "{{ inventory_root }}/{{ cloud_project }}"
+        - "{{ inventory_root }}/{{ cloud_project }}/host_vars"
+        - "{{ inventory_root }}/{{ cloud_project }}/group_vars"
+      tags:
+        - facts
+
+    - name: Create the inventory file on the local node
+      template:
+        src: local-inventory.j2
+        dest: "{{ cloud_inventory_file }}"
+      tags:
+        - facts
+
+    - name: Create the host_vars directories
+      file:
+        path: "{{ inventory_root }}/{{ cloud_project }}/host_vars/{{ host_interface_list.key.split('.')[0] }}.{{ cloud_instance }}"
+        state: directory
+        mode: 0755
+      with_dict: "{{ host_interfaces_dict }}"
+      loop_control:
+        loop_var: host_interface_list
+      tags:
+        - facts
+
+    - name: Create the interfaces file
+      template:
+        src: local-interfaces.j2
+        dest: "{{ inventory_root }}/{{ cloud_project }}/host_vars/{{ host_interface_list.key.split('.')[0] }}.{{ cloud_instance }}/interfaces.yml"
+      with_dict: "{{ host_interfaces_dict }}"
+      loop_control:
+        loop_var: host_interface_list
+      tags:
+        - facts
+
+    - name: Copy group_vars
+      copy:
+        src: group_vars
+        dest: "{{ inventory_root }}/{{ cloud_project }}"
+      tags:
+        - facts

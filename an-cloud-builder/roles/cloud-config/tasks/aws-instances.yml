@@ -1,0 +1,35 @@
+---
+- set_fact:
+    cloud_instance_map: {}
+    cloud_interface_map: {}
+
+- name: Get the instance facts for project {{ cloud_vpc_data.project }}
+  ec2_instance_facts:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    region: "{{ cloud_vpc_data.region }}"
+    filters:
+      vpc-id: "{{ vpc_id }}"
+      "tag:Environment": "{{ cloud_vpc_data.project }}"
+  register: instance_facts
+
+- name: Create a dict of instances for project {{ cloud_vpc_data.project }}
+  set_fact:
+    cloud_instance_map: "{{ cloud_instance_map | default({}) | combine({ instance_facts_item.tags.Name: instance_facts_item.instance_id }) }}"
+  with_items: "{{ instance_facts.instances }}"
+  loop_control:
+    loop_var: instance_facts_item
+
+- name: Create private key for {{ cloud_name }}
+  ec2_key:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    region: "{{ cloud_vpc_data.region }}"
+    name: "{{ cloud_key_name }}"
+    key_material: "{{ cloud_public_key_material }}"
+    state: present
+
+- include: "{{ role_path }}/tasks/aws-instance.yml"
+  with_items: "{{ cloud_instance_data | default([]) }}"
+  loop_control:
+    loop_var: cloud_instance_item

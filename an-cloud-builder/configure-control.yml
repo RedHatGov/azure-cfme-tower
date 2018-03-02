@@ -1,0 +1,447 @@
+---
+- hosts: control_hosts
+  become: yes
+  vars:
+    model_dir: "{{ playbook_dir }}/models"
+    inventory_root: "{{ playbook_dir }}/inventory"
+    key_root: "{{ playbook_dir }}/keys"
+
+    # cloud_name: "{{ cloud_instance }}.{{ cloud_project }}"
+    cloud_private_key_file: "{{ key_root }}/{{ cloud_key_name }}.key"
+    cloud_public_key_file: "{{ key_root }}/{{ cloud_key_name }}.key.pub"
+    cloud_cidr: '10.1.0.0/16'
+    demo_username: 'labuser'
+    demo_repo_name: 'an-demos'
+    demo_repo_root: 'https://github.com/network-automation'
+    demo_root: "~{{ demo_username }}/{{ demo_repo_name }}"
+    ansible_tower_admin_pass: "{{ lookup('password', '/tmp/passwordfile chars=digits') }}"
+    use_ansible_devel: yes
+
+  tasks:
+    # - name: Update all packages
+    #   yum:
+    #     name: '*'
+    #     state: latest
+
+    # - name: Read in the cloud vars
+    #   include_vars:
+    #     file: "{{ cloud_vars_file }}"
+    #     name: cloud_vars
+    #   tags:
+    #     - tower_cli
+
+    - name: Create the lab user
+      user:
+        name: "{{ demo_username }}"
+        comment: "Lab User"
+        password: '$6$2qJit.8h6RYzzGpF$DCyv0YRGCN0FTqO0e.MjphP1xooyzOB1sloxzSaA/Db8Br.r.Fip.sEc9bV1vfMqzhzBL0RAQPskpzwXh10mU0'
+        uid: 2000
+        group: wheel
+
+    - name: Allow 'wheel' group to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: '^%wheel'
+        line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+        validate: 'visudo -cf %s'
+
+    - name: Create the .ssh directory
+      file:
+        path: "~{{ demo_username }}/.ssh"
+        state: directory
+        owner: "{{ demo_username }}"
+        mode: 0700
+
+    - name: Copy the ssh private key
+      copy:
+        src: "{{ ansible_ssh_private_key_file }}"
+        dest: "~{{ demo_username }}/.ssh/id_rsa"
+        owner: "{{ demo_username }}"
+        mode: 0600
+
+    - name: Copy the ssh public key
+      copy:
+        src: "{{ ansible_ssh_private_key_file }}.pub"
+        dest: "~{{ demo_username }}/.ssh/id_rsa.pub"
+        owner: "{{ demo_username }}"
+        mode: 0600
+
+    - name: create the ~/.ssh/config
+      blockinfile:
+        path: "~{{ demo_username }}/.ssh/config"
+        create: yes
+        owner: "{{ demo_username }}"
+        block: |
+          Host *
+          StrictHostKeyChecking no
+
+    - name: create the ~/.ansible.cfg
+      blockinfile:
+        path: "~{{ demo_username }}/.ansible.cfg"
+        create: yes
+        owner: "{{ demo_username }}"
+        block: |
+          [defaults]
+          host_key_checking = False
+          inventory = /home/labuser/an-demos/inventory
+          retry_files_enabled = False
+
+    - name: Allow password authentication
+      lineinfile: dest=/etc/ssh/sshd_config
+                  regexp="^PasswordAuthentication"
+                  line="PasswordAuthentication yes"
+                  state=present
+      become: yes
+      register: result
+
+    - name: Restart sshd
+      systemd:
+        name: sshd
+        state: restarted
+      become: yes
+      # when: result.changed
+
+    - name: Enable syslog
+      blockinfile:
+        path: /etc/rsyslog.conf
+        block: |
+          $ModLoad imudp
+          $UDPServerRun 514
+          $ModLoad imtcp
+          $InputTCPServerRun 514
+      register: result
+
+    - name: Restart rsyslog
+      systemd:
+        name: rsyslog
+        state: restarted
+      become: yes
+      # when: result.changed
+
+    - name: Disable certificate checking for Python
+      lineinfile:
+        dest: "~{{ demo_username }}/.bash_profile"
+        line: "export PYTHONHTTPSVERIFY=0"
+
+    - name: Check to see if the .tower_cli.cfg exists
+      stat:
+        path: "~{{ demo_username }}/.tower_cli.cfg"
+      register: stat_results
+      become_user: "{{ demo_username }}"
+
+    - name: create the ~/.tower_cli.cfg
+      blockinfile:
+        path: "~{{ demo_username }}/.tower_cli.cfg"
+        create: yes
+        owner: "{{ demo_username }}"
+        mode: 0600
+        block: |
+          host: localhost
+          username: admin
+          password: {{ cloud_password }}
+      when: stat_results.stat.exists == false
+      become_user: "{{ demo_username }}"
+
+    - name: Add EPEL repository
+      yum_repository:
+        name: epel
+        description: EPEL YUM repo
+        baseurl: https://download.fedoraproject.org/pub/epel/7/x86_64/
+        gpgkey: https://mirror.steadfast.net/epel/RPM-GPG-KEY-EPEL-7
+
+    - name: Remove out of date Yum packages
+      yum:
+        name: "{{ item }}"
+        state: absent
+      with_items:
+        - python-requests
+        - pyOpenSSL
+
+    - name: Install YUM packages
+      yum:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - python2-pip
+        - git
+        - vim
+
+    - name: Install YUM packages
+      yum:
+        name: ansible
+        state: latest
+      when: use_ansible_devel|bool == false
+
+    - include_role:
+        name: ansible-tower
+      vars:
+        ansible_tower_version: '3.2.2'
+      tags:
+        - tower
+
+    - name: Install Ansible Devel
+      pip:
+        name: ansible
+        state: present
+        version: 2.5.0b1
+      when: use_ansible_devel|bool
+      tags:
+        - ansible
+    - name: Install PIP packages
+      pip:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - "setuptools>=1.4"
+        - f5-sdk
+        - bigsuds
+        - pan-python
+        - pandevice
+        - pexpect
+        - requests
+        - pyopenssl
+        - netaddr
+        - "ansible-tower-cli==3.1.8"
+        - xmltodict
+        - ncclient
+
+    - name: Install Ansible Devel into Tower's virtualenv
+      pip:
+        name: ansible
+        state: present
+        version: 2.5.0b1
+        virtualenv_command: /var/lib/awx/venv/ansible/bin/activate
+      when: use_ansible_devel|bool
+      tags:
+        - tower
+
+    - name: Install PIP packages into Tower's virtualenv
+      pip:
+        name: "{{ item }}"
+        state: latest
+        virtualenv_command: /var/lib/awx/venv/ansible/bin/activate
+      with_items:
+        - "setuptools>=1.4"
+        - f5-sdk
+        - bigsuds
+        - pan-python
+        - pandevice
+        - pexpect
+        - requests
+        - pyopenssl
+        - netaddr
+        - "ansible-tower-cli==3.1.8"
+        - xmltodict
+        - ncclient
+      tags:
+        - tower
+
+    - name: Add IP addresses to /etc/hosts
+      lineinfile:
+        dest: /etc/hosts
+        line: "{{ hostvars[item].ansible_host }} {{ hostvars[item].inventory_hostname.split('.')[0] }}"
+        state: present
+      with_items: "{{ groups.all }}"
+
+    - name: Create the git user
+      user:
+        name: git
+        comment: git
+        password: '$6$2qJit.8h6RYzzGpF$DCyv0YRGCN0FTqO0e.MjphP1xooyzOB1sloxzSaA/Db8Br.r.Fip.sEc9bV1vfMqzhzBL0RAQPskpzwXh10mU0'
+        uid: 2001
+        group: wheel
+
+    - name: Create the .ssh directory
+      file:
+        path: "~git/.ssh"
+        state: directory
+        owner: git
+        mode: 0700
+
+    - name: Create git user's authorized_keys
+      copy:
+        src: "{{ ansible_ssh_private_key_file }}.pub"
+        dest: "~git/.ssh/authorized_keys"
+        owner: git
+        mode: 0600
+
+    - name: Create the {{ demo_repo_name }} local repo
+      command: git clone --bare "{{ demo_repo_root }}/{{ demo_repo_name }}.git"
+      args:
+        creates: "/home/git/{{ demo_repo_name }}.git/HEAD"
+      become_user: git
+
+    - name: Install the {{ demo_repo_name }}
+      git:
+        repo: "git@localhost:/home/git/{{ demo_repo_name }}.git"
+        dest: "{{ demo_root }}"
+        force: yes
+      become_user: "{{ demo_username }}"
+
+    - name: Remove inventory from .gitignore
+      lineinfile:
+        path: "~{{ demo_username }}/{{ demo_repo_name }}/.gitignore"
+        state: absent
+        regexp: 'inventory'
+      become_user: "{{ demo_username }}"
+
+    # - name: Create the inventory directory
+    #   file:
+    #     path: "{{ item }}"
+    #     state: directory
+    #     owner: "{{ demo_username }}"
+    #     mode: 0755
+    #     recurse: yes
+    #   with_items:
+    #     - "{{ demo_root }}/inventory"
+    #     - "{{ demo_root }}/inventory/host_vars"
+    #     - "{{ demo_root }}/inventory/group_vars"
+    #
+    # - name: Create the inventory file on the control node(s)
+    #   template:
+    #     src: control-inventory.j2
+    #     dest: "{{ demo_root }}/inventory/hosts"
+    #     owner: "{{ demo_username }}"
+    #
+    # - name: Create the group_vars files
+    #   copy:
+    #     src: group_vars
+    #     dest: "{{ demo_root }}/inventory"
+    #     owner: "{{ demo_username }}"
+    #
+    # - name: Create the host_vars directories
+    #   file:
+    #     path: "{{ demo_root }}/inventory/host_vars/{{ item.split('.')[0] }}"
+    #     state: directory
+    #     owner: "{{ demo_username }}"
+    #     mode: 0755
+    #   when: hostvars[item].interfaces is defined
+    #   with_items: "{{ groups.network }}"
+    #
+    # - name: Create the interfaces files
+    #   template:
+    #     src: "{{ playbook_dir }}/templates/interfaces.j2"
+    #     dest: "{{ demo_root }}/inventory/host_vars/{{ item.split('.')[0] }}/interfaces.yml"
+    #     owner: "{{ demo_username }}"
+    #   when: hostvars[item].interfaces is defined
+    #   with_items: "{{ groups.network }}"
+
+    - name: Copy the project inventory
+      copy:
+        src: "{{ inventory_root }}/{{ cloud_project }}/"
+        dest: "{{ demo_root }}/inventory"
+        owner: "{{ demo_username }}"
+
+    - name: Remove sshkey from the inventory file
+      lineinfile:
+        path: "{{ demo_root }}/inventory/{{ cloud_instance }}.yml"
+        state: absent
+        regexp: 'ansible_ssh_private_key_file'
+      become_user: "{{ demo_username }}"
+
+    - name: Add the inventory changes
+      command: git add inventory
+      args:
+        chdir: "{{ demo_root }}"
+      become_user: "{{ demo_username }}"
+
+    - name: Commit the inventory changes
+      command: git commit -a -m "Added inventory"
+      args:
+        chdir: "{{ demo_root }}"
+      become_user: "{{ demo_username }}"
+      ignore_errors: true
+
+    - name: Push the inventory changes
+      command: git push origin master
+      args:
+        chdir: "{{ demo_root }}"
+      become_user: "{{ demo_username }}"
+      ignore_errors: true
+
+    - name: Add tower "{{ demo_username }}" account
+      command: tower-cli user create --username "{{ demo_username }}" --password "{{ cloud_password }}" --is-superuser yes --email labuser@ansible.com
+      become_user: "{{ demo_username }}"
+      tags:
+        - tower
+        - tower_cli
+
+    - name: Add tower git credential
+      command: tower-cli credential create --name git --kind scm --organization Default --ssh-key-data ~/.ssh/id_rsa
+      become_user: "{{ demo_username }}"
+      tags:
+        - tower
+        - tower_cli
+
+    - name: Add tower ssh credential
+      command: tower-cli credential create --name tower --kind ssh --organization Default --ssh-key-data ~/.ssh/id_rsa
+      become_user: "{{ demo_username }}"
+      tags:
+        - tower
+        - tower_cli
+
+    - name: Add tower demo repo
+      command: tower-cli project create --name an-demos --scm-type git --scm-url git@localhost:/home/git/an-demos.git --scm-credential git
+      become_user: "{{ demo_username }}"
+      tags:
+        - tower
+        - tower_cli
+
+    - name: Add tower demo inventory
+      command: tower-cli inventory create --name an-demos --organization Default
+      become_user: "{{ demo_username }}"
+      tags:
+        - tower
+        - tower_cli
+
+    - name: Add the playbooks
+      command: tower-cli job_template create --name "{{ item }}" --project an-demos --inventory an-demos --playbook "net/{{ item }}.yml" --limit network --machine-credential tower
+      become_user: "{{ demo_username }}"
+      with_items:
+        - network-hostname
+        - network-interfaces
+        - network-logging
+        - network-banners
+        - network-resolver
+        - network-tunnels
+        - network-check
+        - network-bgp-peers
+        - network-bgp-networks
+        - network-checkpoint
+        - network-rollback
+      tags:
+        - tower
+        - tower_cli
+
+    # - name: Add tower git credential
+    #   tower_credential:
+    #     name: git
+    #     description: git
+    #     organization: Default
+    #     kind: scm
+    #     state: present
+    #     ssh_key_data: "~{{ demo_username }}/.ssh/id_rsa"
+    #     tower_config_file: "~{{ demo_username }}/.tower_cli.cfg"
+    #   delegate_to: "{{ ansible_host }}"
+    #   become: "{{ demo_username }}"
+    #   tags:
+    #     - tower
+    #     - tower_cli
+    #
+    # - name: Add tower machine credential
+    #   tower_credential:
+    #     name: tower
+    #     description: tower
+    #     organization: Default
+    #     kind: ssh
+    #     state: present
+    #     ssh_key_data: "~{{ demo_username }}/.ssh/id_rsa"
+    #     tower_config_file: "~{{ demo_username }}/.tower_cli.cfg"
+    #   delegate_to: "{{ ansible_host }}"
+    #   become: "{{ demo_username }}"
+    #   tags:
+    #     - tower
+    #     - tower_cli
+
+    - debug: msg="Control node public IP = {{ ansible_host }}"

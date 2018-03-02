@@ -1,0 +1,12 @@
+---
+- name: Create the ssh key pairs in {{ cloud_vpc_data.region }}
+  ec2_key:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    name: "{{ key_item }}"
+    region: "{{ cloud_vpc_data.region }}"
+    key_material: '{{ cloud_keypair_data[key_item] }}'
+    state: present
+  with_items: "{{ cloud_keypair_data.keys() | default([]) }}"
+  loop_control:
+    loop_var: key_item

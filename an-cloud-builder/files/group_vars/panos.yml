@@ -1,0 +1,23 @@
+panos_objects:
+  - serviceobject: 'service-ssh'
+    destination_port: '22'
+    protocol: 'tcp'
+    description: 'ssh on 22'
+panos_nat_rules:
+  - rule_name: 'NATAllOut'
+    source_zone: ['trust']
+    destination_zone: 'untrust'
+    source_ip: ['any']
+    destination_ip: ['any']
+    snat_type: 'dynamic-ip-and-port'
+    snat_interface: 'ethernet1/1'
+panos_security_rules:
+  - rule_name: 'Incoming SSH'
+    service: 'service-ssh'
+    description: 'Allow Incoming SSH traffic'
+    destination_zone: 'trust'
+    source_zone: ['untrust']
+  - rule_name: 'Outgoing All'
+    description: 'Allow All Outgoing traffic'
+    destination_zone: 'untrust'
+    source_zone: ['trust']

@@ -1,0 +1,27 @@
+---
+- name: Create OpenStack instance
+  os_server:
+    state: present
+    cloud: "{{ region_dict.cloud | default(omit) }}"
+    name: "{{ cloud_instance_dict.name }}"
+    image: "{{ cloud_instance_dict.image }}"
+    key_name: "{{ cloud_instance_dict.key_name }}"
+    flavor: "{{ cloud_instance_dict.size }}"
+    auto_ip: "{{ cloud_instance_dict.public_ip | default('no') }}"
+    nics:
+      - net-name: "{{ cloud_instance_dict.subnet }}"
+    validate_certs: "{{ region_dict.validate_certs | default(omit) }}"
+    security_groups: "{{ cloud_instance_dict.security_groups | default(omit) }}"
+    meta: "{{ cloud_instance_dict.tags | default(omit) }}"
+  tags:
+    - instances
+  register: instance
+
+- name: Get instance IP address
+  set_fact:
+    instance_ip_address: "{{ instance.openstack.private_v4 if not instance.openstack.public_v4 else instance.openstack.public_v4 }}"
+  tags:
+    - instances
+
+- include: "{{ role_path }}/tasks/{{ region_dict.cloud_dns_provider }}-record.yml"
+  when: cloud_instance_dict.zone is defined and region_dict.cloud_dns_provider is defined

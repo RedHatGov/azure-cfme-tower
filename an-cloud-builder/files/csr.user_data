@@ -1,0 +1,1 @@
+ios-config-0001=ip route 0.0.0.0 0.0.0.0 GigabitEthernet1 dhcp

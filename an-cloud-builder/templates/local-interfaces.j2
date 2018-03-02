@@ -1,0 +1,9 @@
+interfaces:
+{% for interface in host_interface_list.value %}
+  - name: {{ interface.name }}
+    ip: {{ interface.ip | default('') }}
+    private_ip_address: {{ interface.private_ip_address | default('') }}
+    private_ip_cidr: {{ interface.private_ip_cidr | default('') }}
+    public_ip_address: {{ interface.public_ip_address | default('') }}
+    public_dns_name: {{ interface.public_dns_name | default('') }}
+{% endfor %}

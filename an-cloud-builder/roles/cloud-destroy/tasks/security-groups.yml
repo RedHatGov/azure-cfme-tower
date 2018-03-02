@@ -1,0 +1,6 @@
+---
+- include_tasks: "{{ cloud_vpc_data.provider }}-security-groups.yml"
+  vars:
+    cloud_security_group_data: "{{ cloud_acls | default([]) }}"
+  tags:
+    - security-groups

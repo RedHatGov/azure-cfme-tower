@@ -1,0 +1,271 @@
+---
+# tasks file for deploy
+- hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: include azure data set
+      include_vars:
+        file: site4.yml
+
+    - name: Create a resource group
+      azure_rm_resourcegroup:
+        name: "{{ resource }}"
+        location: "{{ location }}"
+
+
+    - name: create a storage account
+      azure_rm_storageaccount:
+        resource_group: "{{ resource }}"
+        name: "{{ resource.lower() | regex_replace('[^a-z0-9]', '')}}"
+        type: Standard_LRS
+
+
+    - name: Create security group
+      azure_rm_securitygroup:
+        state: present
+        resource_group: "{{ resource }}"
+        name: "{{ resource.lower() | regex_replace('[^a-z0-9]', '')}}"
+        purge_rules: yes
+        rules:
+          - name: 'AllowSSH'
+            protocol: Tcp
+            source_address_prefix: "Internet"
+            destination_port_range: 22
+            access: Allow
+            priority: 100
+            direction: Inbound
+          - name: 'AllowUDP500'
+            protocol: Udp
+            source_address_prefix: "Internet"
+            destination_port_range: 500
+            access: Allow
+            priority: 101
+            direction: Inbound
+          - name: 'AllowUSP4500'
+            protocol: Udp
+            source_address_prefix: "Internet"
+            destination_port_range: 500
+            access: Allow
+            priority: 102
+            direction: Inbound
+          - name: 'AllowICMP'
+            protocol: '*'
+            destination_port_range: '*'
+            access: Allow
+            priority: 103
+            direction: Inbound
+
+    - name: Create virtual network
+      azure_rm_deployment:
+        deployment_mode: incremental
+        wait_for_deployment_completion: yes
+        state: present
+        location: '{{ location }}'
+        resource_group_name: '{{ resource }}'
+        template:
+          $schema: "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#"
+          contentVersion: "1.0.0.0"
+          resources:
+            -
+              comments: "Create Outside Route Table"
+              type: "Microsoft.Network/routeTables"
+              name: '{{ resource }}_outside_routes'
+              apiVersion: "2016-03-30"
+              location: '{{ location }}'
+              properties:
+                routes:
+                  -
+                    name: "Route-Inside_Subnet-To-CSR"
+                    properties:
+                      addressPrefix: '{{ inside_cidr }}'
+                      nextHopType: "VirtualAppliance"
+                      nextHopIpAddress: '{{ csr_outside_ip }}'
+              dependsOn: []
+            -
+              comments: "Create Inside Route Table"
+              type: "Microsoft.Network/routeTables"
+              name: '{{ resource }}_inside_routes'
+              apiVersion: "2016-03-30"
+              location: '{{ location }}'
+              properties:
+                routes:
+                  -
+                    name: "Route-Outside_Subnet-To-CSR"
+                    properties:
+                      addressPrefix: '{{ outside_cidr }}'
+                      nextHopType: "VirtualAppliance"
+                      nextHopIpAddress: '{{ csr_inside_ip }}'
+                  -
+                    name: "Default-Route-To-CSR"
+                    properties:
+                      addressPrefix: "0.0.0.0/0"
+                      nextHopType: "VirtualAppliance"
+                      nextHopIpAddress: '{{ csr_inside_ip }}'
+              dependsOn: []
+            -
+              comments: "Generalized from resource: '/subscriptions/025bfe8c-a09b-4e2e-ac1b-7a9257e14563/resourceGroups/CSR/providers/Microsoft.Network/virtualNetworks/vnet01'."
+              type: "Microsoft.Network/virtualNetworks"
+              name: '{{ resource }}_vnet'
+              apiVersion: "2016-03-30"
+              location: '{{ location }}'
+              properties:
+                addressSpace:
+                  addressPrefixes:
+                    - '{{ vpc_cidr }}'
+                subnets:
+                  -
+                    name: '{{ resource }}_outside'
+                    properties:
+                      addressPrefix: '{{ outside_cidr }}'
+                      routeTable:
+                        id: "[resourceId('Microsoft.Network/routeTables', '{{ resource }}_outside_routes')]"
+                  -
+                    name: '{{ resource }}_inside'
+                    properties:
+                      addressPrefix: '{{ inside_cidr }}'
+                      routeTable:
+                        id: "[resourceId('Microsoft.Network/routeTables', '{{ resource}}_inside_routes')]"
+              dependsOn:
+                - "[resourceId('Microsoft.Network/routeTables', '{{ resource }}_outside_routes')]"
+                - "[resourceId('Microsoft.Network/routeTables', '{{ resource}}_inside_routes')]"
+
+    - name: Create a public ip address
+      azure_rm_publicipaddress:
+        resource_group: '{{ resource }}'
+        name: 'csr_public_ip'
+        allocation_method: Static
+      register: csr_public_ip
+
+    - name: Create the CSR
+      azure_rm_deployment:
+        deployment_mode: incremental
+        wait_for_deployment_completion: yes
+        state: present
+        location: '{{ location }}'
+        resource_group_name: '{{ resource }}'
+        template:
+          $schema: "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#"
+          contentVersion: "1.0.0.0"
+          variables:
+            csr_osDisk_uri: "[concat('http://','{{ resource.lower() | regex_replace('[^a-z0-9]', '')}}','.blob.core.windows.net/vhds/','{{ resource }}-csr','.vhd')]"
+          resources:
+            -
+              comments: "Create CSR's outside interface"
+              type: "Microsoft.Network/networkInterfaces"
+              name: 'csr_outside_interface'
+              apiVersion: "2016-03-30"
+              location: '{{ location }}'
+              properties:
+                ipConfigurations:
+                  -
+                    name: "ipconfig1"
+                    properties:
+                      privateIPAddress: '{{ csr_outside_ip }}'
+                      privateIPAllocationMethod: "Static"
+                      publicIPAddress:
+                        id: "[resourceId('Microsoft.Network/publicIPAddresses', 'csr_public_ip')]"
+                      subnet:
+                        id: "[concat(resourceId('Microsoft.Network/virtualNetworks', '{{ resource }}_vnet'), '/subnets/', '{{ resource }}_outside')]"
+                dnsSettings:
+                  dnsServers: []
+                enableIPForwarding: true
+                networkSecurityGroup:
+                  id: "[resourceId('Microsoft.Network/networkSecurityGroups', '{{ resource.lower() | regex_replace('[^a-z0-9]', '')}}')]"
+            -
+              comments: "Create CSR's inside interface"
+              type: "Microsoft.Network/networkInterfaces"
+              name: 'csr_inside_interface'
+              apiVersion: "2016-03-30"
+              location: '{{ location }}'
+              properties:
+                ipConfigurations:
+                  -
+                    name: "ipconfig1"
+                    properties:
+                      privateIPAddress: '{{ csr_inside_ip }}'
+                      privateIPAllocationMethod: "Static"
+                      subnet:
+                        id: "[concat(resourceId('Microsoft.Network/virtualNetworks', '{{ resource }}_vnet'), '/subnets/', '{{ resource }}_inside')]"
+                dnsSettings:
+                  dnsServers: []
+                enableIPForwarding: true
+            -
+              comments: "Create CSR"
+              type: "Microsoft.Compute/virtualMachines"
+              name: '{{ resource }}-csr'
+              apiVersion: "2015-06-15"
+              location: '{{ location }}'
+              plan:
+                name: "16_7"
+                product: "cisco-csr-1000v"
+                publisher: "cisco"
+              properties:
+                hardwareProfile:
+                  vmSize: "Standard_D2"
+                storageProfile:
+                  imageReference:
+                    publisher: "cisco"
+                    offer: "cisco-csr-1000v"
+                    sku: "16_7"
+                    version: "latest"
+                  osDisk:
+                    name: "[concat('{{ resource }}-csr','-disk')]"
+                    createOption: "FromImage"
+                    vhd:
+                      uri: "[variables('csr_osDisk_uri')]"
+                    caching: "ReadWrite"
+                  dataDisks: []
+                osProfile:
+                  computerName: '{{ router_hostname }}'
+                  adminUsername: "cisco"
+                  adminPassword: "Cisco!234567"
+                  linuxConfiguration:
+                    disablePasswordAuthentication: false
+                    ssh:
+                      publicKeys:
+                        -
+                          path: "/home/cisco/.ssh/authorized_keys"
+                          keyData: "{{ ssh_public_key }}"
+                  secrets: []
+                networkProfile:
+                  networkInterfaces:
+                    -
+                      properties:
+                        primary: true
+                      id: "[resourceId('Microsoft.Network/networkInterfaces', 'csr_outside_interface')]"
+                    -
+                      properties:
+                        primary: false
+                      id: "[resourceId('Microsoft.Network/networkInterfaces', 'csr_inside_interface')]"
+              dependsOn:
+                - "[resourceId('Microsoft.Network/networkInterfaces', 'csr_outside_interface')]"
+                - "[resourceId('Microsoft.Network/networkInterfaces', 'csr_inside_interface')]"
+
+    - debug: var=hostvars[inventory_hostname]
+
+    - name: Set The CSR's Public IP Address
+      set_fact: csr_public_ip_address="{{ hostvars[inventory_hostname]["csr_public_ip"]["state"].ip_address }}"
+
+    - name: Add new router to inventory
+      add_host:
+        name: "{{ router_hostname }}"
+        groups: new_router
+        ansible_host: "{{ csr_public_ip_address }}"
+        ansible_user: "{{username}}"
+        ansible_password: "{{password}}"
+      tags:
+        - provision
+
+- name: Add new site to network
+  hosts: new_router
+  connection: local
+  gather_facts: no
+
+  vars:
+    ansible_network_os: ios
+
+  tasks:
+    - include_role:
+        name: network_dmvpn

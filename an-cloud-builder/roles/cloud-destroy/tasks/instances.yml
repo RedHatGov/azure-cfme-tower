@@ -1,0 +1,4 @@
+---
+- include_tasks: "{{ cloud_vpc_data.provider }}-instances.yml"
+  vars:
+    cloud_instance_data: "{{ cloud_vpc_data.instances | default([]) }}"

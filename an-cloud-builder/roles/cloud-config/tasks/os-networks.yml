@@ -1,0 +1,7 @@
+---
+- include: "{{ role_path }}/tasks/os-network.yml"
+  with_items: "{{ cloud_network_list | default([]) }}"
+  loop_control:
+    loop_var: cloud_network_dict
+  tags:
+    - security_groups

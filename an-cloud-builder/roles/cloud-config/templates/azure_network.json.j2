@@ -1,0 +1,133 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+{#                          #}
+{#    Security Groups       #}
+{#                          #}
+{% for cloud_security_group_name, cloud_security_group_data in cloud_acls.iteritems() %}
+      {
+          "apiVersion": "2017-10-01",
+          "type": "Microsoft.Network/networkSecurityGroups",
+          "name": "{{ cloud_security_group_name }}",
+          "location": "{{ cloud_vpc_data.region }}",
+          "properties": {
+              "securityRules": [
+{% set rule_number = 100 %}
+{% for cloud_security_group_rule in cloud_security_group_data %}
+{% if cloud_security_group_rule.proto.upper() != 'ICMP' %}
+                  {
+                      "name": "rule_{{ loop.index + 100 }}",
+                      "properties": {
+                          "priority": "{{ loop.index + 100 }}",
+                          "protocol": "{{ cloud_security_group_rule.proto | regex_replace('[uU][dD][pP]', 'Udp') | regex_replace('[tT][cC][pP]', 'Tcp') | regex_replace('[iI][cC][mM][pP]', 'Icmp') | regex_replace('all', '*') }}",
+                          "access": "{{ cloud_security_group_rule.action | default('Allow') }}",
+                          "destinationPortRange": "{{ cloud_security_group_rule.dst_ports | default('22') }}",
+                          "sourcePortRange": "*",
+                          "sourceAddressPrefix": "{{ cloud_security_group_rule.src_ip | regex_replace('0.0.0.0/0', 'Internet') | regex_replace('all', 'Internet') }}",
+                          "destinationAddressPrefix": "{{ cloud_security_group_rule.dst_ip | default('*') }}",
+                          "direction": "{{ cloud_security_group_rule.direction | default('Inbound') }}"
+                      }
+                  }{% if not loop.last %},{% endif %}
+{% set rule_number = rule_number + 1 %}
+{% endif %}
+{% endfor %}{# cloud_security_group_rule #}
+              ]
+          }
+      },
+{% endfor %}{# cloud_security_group_name #}
+{#                                  #}
+{#    Route Tables                  #}
+{#                                  #}
+{% for cloud_network_item in vpc_item.networks %}
+{% if cloud_network_item.routes is defined %}
+      {
+          "type": "Microsoft.Network/routeTables",
+          "name": "{{ cloud_network_item.name.split('.')[0] }}_routes",
+          "apiVersion": "2017-06-01",
+          "location": "{{ cloud_vpc_data.region }}",
+          "properties": {
+              "routes": [
+{% for cloud_route_item in cloud_network_item.routes %}
+                  {
+                      "name": "{{ cloud_route_item.cidr.split('/')[0] }}",
+                      "properties": {
+                          "addressPrefix": "{{ cloud_route_item.cidr }}",
+                          "nextHopType": "VirtualAppliance",
+                          "nextHopIpAddress": "{{ private_ip_map[cloud_route_item.instance] }}"
+                      }
+                  }
+                  {% if not loop.last %},{% endif %}
+{% endfor %}{# cloud_route_item #}
+              ]
+          }
+      },
+{% endif %}
+{% endfor %}{# cloud_network_item #}
+{#                          #}
+{#    instance list         #}
+{#                          #}
+{% for cloud_instance_item in vpc_item.instances %}
+{#                          #}
+{#    interface list        #}
+{#                          #}
+{% for cloud_interface_item in cloud_instance_item.interfaces %}
+{#                          #}
+{#    Create Public IPs     #}
+{#                          #}
+{% if cloud_interface_item.public_ip is defined and cloud_interface_item.public_ip %}
+      {
+          "type": "Microsoft.Network/publicIPAddresses",
+          "name": "{{ cloud_instance_item.name.split('.')[0] }}.{{ loop.index - 1 }}_public_ip",
+          "apiVersion": "2017-10-01",
+          "location": "{{ cloud_vpc_data.region }}",
+          "properties": {
+              "publicIPAddressVersion": "IPv4",
+              "publicIPAllocationMethod": "Static"
+          }
+      },
+{% endif %}
+{% endfor %}{# interfaces #}
+{% endfor %}{# instances #}
+{#                                  #}
+{#    Create Subnets                #}
+{#                                  #}
+{% for cloud_network_item in vpc_item.networks %}
+      {
+          "type": "Microsoft.Network/virtualNetworks/subnets",
+          "name": "{{ cloud_vpc_name }}/{{ cloud_network_item.name.split('.')[0] }}",
+          "apiVersion": "2017-06-01",
+          "properties": {
+{% if cloud_network_item.routes is defined %}
+              "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', '{{ cloud_network_item.name.split('.')[0] }}_routes')]"
+              },
+{% endif %}
+              "addressPrefix": "{{ cloud_network_item.cidr }}"
+          },
+          "dependsOn": [
+{% if cloud_network_item.routes is defined %}
+              "[resourceId('Microsoft.Network/routeTables', '{{ cloud_network_item.name.split('.')[0] }}_routes')]",
+{% endif %}
+              "[resourceId('Microsoft.Network/virtualNetworks', '{{ cloud_vpc_name }}')]"
+          ]
+      },
+{% endfor %}{# cloud_network_item #}
+{#                          #}
+{#    Networks              #}
+{#                          #}
+      {
+         "type": "Microsoft.Network/virtualNetworks",
+         "apiVersion": "2015-06-15",
+         "location": "{{ cloud_vpc_data.region }}",
+         "name": "{{ cloud_vpc_name }}",
+         "properties": {
+           "addressSpace": {
+             "addressPrefixes": [
+               "{{ cloud_vpc_data.cidr }}"
+             ]
+           }
+         }
+      }
+    ]
+}

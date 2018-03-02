@@ -1,0 +1,48 @@
+---
+- name: Get facts for all Public IPs within a resource groups
+  azure_rm_publicipaddress_facts:
+    resource_group: "{{ cloud_vpc_name }}"
+  tags:
+    - facts
+
+# - debug: var=public_ip_facts
+#   tags:
+#     - facts
+
+# - debug: msg="{{ item.name | regex_search('([^_]+)_public_ip','\\1') | join }} {{ item.properties.ipAddress }}"
+#   with_items: "{{ azure_publicipaddresses }}"
+#   tags:
+#     - facts
+
+- name: Create Public IP Adrress map for {{ cloud_vpc_data.project }}
+  set_fact:
+    public_ip_map: "{{ public_ip_map | default({}) | combine({ public_ip_item.name | regex_search('([^_]+)_public_ip','\\1') | join: public_ip_item.properties.ipAddress }) }}"
+  with_items: "{{ azure_publicipaddresses }}"
+  loop_control:
+    loop_var: public_ip_item
+
+- name: Get network interfaces within a resource group
+  azure_rm_networkinterface_facts:
+    resource_group: "{{ cloud_vpc_name }}"
+
+- name: Create Private IP Adrress map for {{ cloud_vpc_data.project }}
+  set_fact:
+    private_ip_map: "{{ private_ip_map | default({}) | combine({ private_ip_item.name: private_ip_item.properties.ipConfigurations[0].properties.privateIPAddress }) }}"
+  with_items: "{{ azure_networkinterfaces }}"
+  loop_control:
+    loop_var: private_ip_item
+
+# - debug: msg="{{ item.name }} {{ item.properties.ipConfigurations[0].properties.privateIPAddress }}"
+#   with_items: "{{ azure_networkinterfaces }}"
+#   tags:
+#     - facts
+# - name: Get facts for for {{ cloud_vpc_name }}
+#   azure_rm_resourcegroup_facts:
+#     name: "{{ cloud_vpc_name }}"
+#   register: azure_facts
+#   tags:
+#     - facts
+#
+# - debug: var=azure_facts
+#   tags:
+#     - facts

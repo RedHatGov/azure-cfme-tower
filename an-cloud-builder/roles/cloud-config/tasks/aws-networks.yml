@@ -1,0 +1,33 @@
+---
+# We create the VPC and IGW even if we delete it so that we can get the ids to
+# delete the subnets
+- name: Create AWS VPC {{ cloud_vpc_data.project }} in {{ cloud_vpc_data.region }}
+  ec2_vpc_net:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    name: "{{ cloud_vpc_name }}"
+    cidr_block: "{{ cloud_vpc_data.cidr }}"
+    region: "{{ cloud_vpc_data.region }}"
+    tags:
+      tenant: "{{ cloud_vpc_data.project | default(tenant_name) }}"
+    state: present
+  register: vpc_result
+
+- name: Set VPC ID
+  set_fact:
+    vpc_id: "{{ vpc_result.vpc.id }}"
+  failed_when: vpc_result.vpc is not defined
+
+- name: Create AWS IGW for VPC {{ vpc_result.vpc.id }} in {{ cloud_vpc_data.region }}
+  ec2_vpc_igw:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    region: "{{ cloud_vpc_data.region }}"
+    vpc_id: "{{ vpc_result.vpc.id }}"
+    state: present
+  register: igw_result
+
+- include_tasks: "{{ role_path }}/tasks/aws-network.yml"
+  with_items: "{{ cloud_network_data | default([]) }}"
+  loop_control:
+    loop_var: cloud_network_item

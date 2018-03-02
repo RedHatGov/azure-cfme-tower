@@ -1,0 +1,2 @@
+---
+- include_tasks: "{{ cloud_vpc_data.provider }}-networks.yml"

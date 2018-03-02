@@ -1,0 +1,19 @@
+---
+- name: Create a security group
+  os_security_group:
+    cloud: "{{ region_dict.cloud | default(omit) }}"
+    state: present
+    name: "{{ cloud_security_group_item }}"
+  with_items: "{{ cloud_security_group_dict.keys() | default([]) }}"
+  loop_control:
+    loop_var: cloud_security_group_item
+  tags:
+    - security_groups
+
+
+- include: "{{ role_path }}/tasks/os-security-group.yml cloud_security_group_name={{ cloud_security_group_item }} cloud_security_group_list={{ cloud_security_group_dict[cloud_security_group_item] }}"
+  with_items: "{{ cloud_security_group_dict.keys() | default([]) }}"
+  loop_control:
+    loop_var: cloud_security_group_item
+  tags:
+    - security_groups

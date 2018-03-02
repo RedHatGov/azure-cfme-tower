@@ -1,0 +1,12 @@
+---
+- hosts: towers
+
+  tasks:
+    - name: Install Ansible
+      yum:
+        name: "https://releases.ansible.com/ansible/rpm/release/epel-7-x86_64/ansible-2.4.2.0-1.el7.ans.src.rpm"
+
+    - include_role:
+        name: ansible-tower
+      vars:
+        ansible_tower_version: 3.2.2

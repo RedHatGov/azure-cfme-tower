@@ -1,0 +1,65 @@
+#junos-config
+groups {
+    global {
+        system {
+            host-name HOSTNAME;
+            services {
+                ssh {
+                    root-login deny-password;
+                }
+            }
+            login {
+                user jnpr {
+                    uid 2000;
+                    class super-user;
+                    authentication {
+                        ssh-rsa "SSHRSAKEY"; ## SECRET-DATA
+                    }
+                }
+            }
+            syslog {
+                user * {
+                    any emergency;
+                }
+                file messages {
+                    any notice;
+                    authorization info;
+                }
+                file interactive-commands {
+                    interactive-commands any;
+                }
+            }
+        }
+        interfaces {
+            fxp0 {
+                unit 0 {
+                    family inet {
+                        address FXP0ADDR;
+                    }
+                }
+            }
+        }
+        routing-options {
+            static {
+                route 0.0.0.0/0 {
+                    next-hop GATEWAY;
+                    retain;
+                    no-readvertise;
+                }
+            }
+        }
+    }
+}
+system {
+    root-authentication {
+        encrypted-password "$6$2qJit.8h6RYzzGpF$DCyv0YRGCN0FTqO0e.MjphP1xooyzOB1sloxzSaA/Db8Br.r.Fip.sEc9bV1vfMqzhzBL0RAQPskpzwXh10mU0";
+    }
+    services {
+        netconf {
+            ssh {
+                port 830;
+            }
+        }
+    }
+}
+apply-groups global;

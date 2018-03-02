@@ -1,0 +1,10 @@
+---
+- name: Create the ssh key pairs
+  os_keypair:
+    cloud: "{{ region_dict.cloud | default(omit) }}"
+    state: present
+    name: "{{ key_item }}"
+    public_key: "{{ ssh_key_list[key_item] }}"
+  with_items: "{{ cloud_keypair_list.keys() | default([]) }}"
+  loop_control:
+    loop_var: key_item

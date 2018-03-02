@@ -1,0 +1,8 @@
+---
+- block:
+  - include: "{{ role_path }}/tasks/azure-instance.yml"
+    with_items: "{{ cloud_instance_data | default([]) }}"
+    loop_control:
+      loop_var: cloud_instance_item
+  tags:
+    - cloud-instances

@@ -1,0 +1,6 @@
+---
+- block:
+  - include: "{{ role_path }}/tasks/azure-route.yml"
+    with_items: "{{ cloud_route_data | default([]) }}"
+    loop_control:
+      loop_var: cloud_route_item

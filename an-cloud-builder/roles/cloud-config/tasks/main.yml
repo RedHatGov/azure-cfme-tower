@@ -1,0 +1,43 @@
+---
+- set_fact:
+    cloud_state: 'present'
+  when: cloud_state is not defined
+
+- include_tasks: "networks.yml"
+  vars:
+    cloud_network_data: "{{ cloud_vpc_data.networks | default([]) }}"
+  tags:
+    - networks
+
+# - include_tasks: "keypairs.yml"
+#   vars:
+#     cloud_keypair_data: "{{ ssh_keys | default([]) }}"
+#   tags:
+#     - keypairs
+
+- include_tasks: "security-groups.yml"
+  vars:
+    cloud_security_group_data: "{{ cloud_acls | default([]) }}"
+  tags:
+    - security-groups
+
+- include_tasks: "instances.yml"
+  vars:
+    cloud_instance_data: "{{ vpc_item.instances | default([]) }}"
+    # cloud_dns_provider: "{{ dns_provider | default('route53') }}"
+    # cloud_dns_zone: "{{ workshop_dns_zone }}"
+    # cloud_dns_domain: "{{ vpc_item.project }}.{{ workshop_dns_zone }}"
+  tags:
+    - instances
+
+- include_tasks: "routes.yml"
+  vars:
+    cloud_network_data: "{{ cloud_vpc_data.networks | default([]) }}"
+  tags:
+    - routes
+
+# - include_tasks: "vnfs.yml"
+#   vars:
+#     cloud_network_data: "{{ vpc_item.networks | default([]) }}"
+#   tags:
+#     - vnfs

@@ -1,0 +1,134 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "resources": [
+{#                          #}
+{#    instance list         #}
+{#                          #}
+{% for cloud_instance_item in vpc_item.instances %}
+{#                          #}
+{#    interface list        #}
+{#                          #}
+{% for cloud_interface_item in cloud_instance_item.interfaces %}
+{#                                  #}
+{#    Create Network Interfaces     #}
+{#                                  #}
+      {
+         "type": "Microsoft.Network/networkInterfaces",
+         "apiVersion": "2015-06-15",
+         "name": "{{ cloud_instance_item.name.split('.')[0] }}.{{ loop.index - 1 }}",
+         "location": "{{ cloud_vpc_data.region }}",
+         "properties": {
+             "ipConfigurations": [
+                 {
+                     "name": "{{ cloud_interface_item.name }}",
+                     "properties": {
+{% if cloud_interface_item.private_ip is defined %}
+                         "privateIPAddress": "{{ cloud_interface_item.private_ip }}",
+                         "privateIPAllocationMethod": "Static",
+{% else %}
+                         "privateIPAllocationMethod": "Dynamic",
+{% endif %}
+{% if cloud_interface_item.public_ip is defined and cloud_interface_item.public_ip %}
+                         "publicIPAddress": {
+                               "id": "[resourceId('Microsoft.Network/publicIPAddresses', '{{ cloud_instance_item.name.split('.')[0] }}.{{ loop.index - 1 }}_public_ip')]"
+                         },
+{% endif %}
+                         "subnet": {
+                             "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', '{{ cloud_vpc_name }}', '{{ cloud_interface_item.subnet.split('.')[0] }}')]"
+                         }
+                     }
+
+                 }
+             ],
+             "enableIPForwarding": true
+         },
+         "dependsOn": [
+{% if cloud_interface_item.public_ip is defined and cloud_interface_item.public_ip %}
+            "[resourceId('Microsoft.Network/publicIPAddresses', '{{ cloud_instance_item.name.split('.')[0] }}.{{ loop.index - 1 }}_public_ip')]",
+{% endif %}
+            "[resourceId('Microsoft.Network/virtualNetworks/subnets', '{{ cloud_vpc_name }}', '{{ cloud_interface_item.subnet.split('.')[0] }}')]"
+         ]
+      },
+{% endfor %}{# interfaces #}
+{#                                  #}
+{#    Create Virtual Machines       #}
+{#                                  #}
+{% set cloud_instance_image = cloud_image_map.azure[cloud_instance_item.image] %}
+{% set cloud_instance_size = cloud_size_map.azure[cloud_instance_item.size] %}
+      {
+          "apiVersion": "2017-12-01",
+          "type": "Microsoft.Compute/virtualMachines",
+          "name": "{{ cloud_instance_item.name.split('.')[0] }}",
+          "location": "{{ cloud_vpc_data.region }}",
+{% if cloud_instance_image.name is defined %}
+          "plan": {
+              "name": "{{ cloud_instance_image.name }}",
+              "publisher": "{{ cloud_instance_image.publisher }}",
+              "product": "{{ cloud_instance_image.product }}"
+          },
+{% endif %}
+          "properties": {
+              "hardwareProfile": {
+                  "vmSize": "{{ cloud_instance_size }}"
+              },
+              "osProfile": {
+                  "computerName": "{{ cloud_instance_item.name.split('.')[0] }}",
+                  "adminUsername": "{{ cloud_user }}",
+                  "linuxConfiguration": {
+                    "disablePasswordAuthentication": "true",
+                    "ssh": {
+                      "publicKeys": [
+                        {
+                          "path": "/home/{{ cloud_user }}/.ssh/authorized_keys",
+                          "keyData": "{{ ssh_public_key_material }}"
+                        }
+                      ]
+                    }
+                 }
+              },
+              "storageProfile": {
+                  "imageReference": {
+                      "publisher": "{{ cloud_instance_image.publisher }}",
+                      "offer": "{{ cloud_instance_image.offer }}",
+                      "sku": "{{ cloud_instance_image.sku }}",
+                      "version": "{{ cloud_instance_image.version }}"
+                  },
+                  "osDisk": {
+                      "name": "{{ cloud_instance_item.name.split('.')[0] }}_osdisk",
+{% set storage_group = cloud_vpc_name.lower() | regex_replace('[^a-z0-9]', '') | truncate(24, False, '') %}
+                      "vhd": {
+                          "uri": "http://{{ cloud_storage_group }}.blob.core.windows.net/vhds/{{ cloud_instance_item.name.split('.')[0] }}_osdisk.vhd"
+                      },
+                      "caching": "ReadWrite",
+                      "createOption": "FromImage"
+                  }
+              },
+              "networkProfile": {
+                  "networkInterfaces": [
+{% for cloud_interface_item in cloud_instance_item.interfaces %}
+
+                      {
+                          "properties": {
+{% if loop.first %}
+                              "primary": true
+{% else %}
+                              "primary": false
+{% endif %}
+                          },
+                          "id": "[resourceId('Microsoft.Network/networkInterfaces', '{{ cloud_instance_item.name.split('.')[0] }}.{{ loop.index - 1 }}')]"
+                      }{% if not loop.last %},{% endif %}
+{% endfor %}{# interfaces #}
+                  ]
+              }
+          },
+          "dependsOn": [
+{% for cloud_interface_item in cloud_instance_item.interfaces %}
+             "[resourceId('Microsoft.Network/networkInterfaces', '{{ cloud_instance_item.name.split('.')[0] }}.{{ loop.index - 1 }}')]"
+{% if not loop.last %},{% endif %}
+{% endfor %}{# interfaces #}
+          ]
+      }{% if not loop.last %},{% endif %}
+{% endfor %}{# instances #}
+   ]
+}

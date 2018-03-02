@@ -1,0 +1,18 @@
+---
+- set_fact:
+    interface_id: "{{ cloud_instance_item.name.split('.')[0] }}.{{ cloud_interface_item.0 }}"
+
+- name: Build the interface dict
+  set_fact:
+    interface_item:
+      - name: "{{ cloud_interface_item.1.name | default(omit) }}"
+        ip: "{{ private_ip_map[interface_id] }}/24"
+        private_ip_address: "{{ private_ip_map[interface_id] }}"
+        private_dns_name: ''
+        public_dns_name: ''
+        public_ip_address: "{{ public_ip_map[interface_id] | default('') }}"
+  register: interface_facts
+
+- name: Add the interface to the interfaces dict
+  set_fact:
+    instance_interfaces: "{{ instance_interfaces | default([]) + interface_item }}"

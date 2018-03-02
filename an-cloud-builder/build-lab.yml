@@ -1,0 +1,22 @@
+---
+- hosts: all
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - set_fact:
+        opt_instance: "{{ inventory_hostname }}"
+
+    - debug: msg="instance':' {{ opt_instance }}"
+
+
+    # - include_role:
+    #     name: cloud-config
+    #   vars:
+    #     - cloud_vpc_name: "{{ vpc_item.name }}"
+    #     - cloud_vpc_data: "{{ vpc_item }}"
+    #   with_items: "{{ vpc_list | default([]) }}"
+    #   loop_control:
+    #     loop_var: vpc_item
+    #   delegate_to: localhost
+    #   run_once: yes

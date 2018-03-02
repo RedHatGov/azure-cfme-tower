@@ -1,0 +1,94 @@
+---
+- set_fact:
+    cloud_instance_image: "{{ cloud_instance_item.image }}"
+    cloud_instance_size: "{{ cloud_instance_item.size }}"
+
+- block:
+  - block:
+    - block:
+      - name: Mapping cloud instance size
+        set_fact:
+          cloud_instance_size: "{{ cloud_instance_map[cloud_vpc_data.provider][cloud_vpc_data.region][cloud_instance_item.size] }}"
+          when: cloud_instance_map[cloud_vpc_data.provider][cloud_vpc_data.region][cloud_instance_item.size] is defined
+        when: cloud_instance_map[cloud_vpc_data.provider][cloud_vpc_data.region] is defined
+      when: cloud_instance_map[cloud_vpc_data.provider] is defined
+    when: cloud_instance_map is defined
+
+- block:
+  - block:
+    - block:
+      - name: Mapping cloud image
+        set_fact:
+          cloud_instance_image: "{{ cloud_image_map[cloud_vpc_data.provider][cloud_vpc_data.region][cloud_instance_item.image] }}"
+        when: cloud_image_map[cloud_vpc_data.provider][cloud_vpc_data.region][cloud_instance_item.image] is defined
+      when: cloud_image_map[cloud_vpc_data.provider][cloud_vpc_data.region] is defined
+    when: cloud_image_map[cloud_vpc_data.provider] is defined
+  when: cloud_image_map is defined
+
+#   - name: Create a Public IP Address
+#     azure_rm_publicipaddress:
+#       name: "{{ tenant_instance_item.name }}_public_ip_address"
+#       domain_name_label: "{{ tenant_instance_item.dns_name | default(omit) }}"
+#       profile: "{{ region_info.profile | default(omit) }}"
+#     when: "{{ cloud_instance_item.public_ip | default(omit) }}"
+#     register: result
+#
+#   - name: Create a network interface
+#     azure_rm_networkinterface:
+#       name: "{{ tenant_instance_item.name }}_{{ tenant_instance_item.subnet }}"
+#       resource_group: "{{ cloud_vpc_name }}"
+# #      profile: "{{ region_info.profile | default(omit) }}"
+#       virtual_network_name: "{{ region_info.project }}_vnet"
+#
+#       public_ip: "{{ tenant_instance_item.public_ip | default('false') }}"
+#       public_ip_address_name: "{{ tenant_instance_item.name }}_public_ip_address "
+
+#   - name: Create a VM with exiting storage account and NIC
+#     azure_rm_virtualmachine:
+#       resource_group: "{{ cloud_vpc_name }}"
+# #      profile: "{{ region_info.profile | default(omit) }}"
+#       name: "{{ cloud_instance_item.name }}"
+#       vm_size: "{{ cloud_instance_size }}"
+#       subnet_name: "{{ cloud_instance_item.subnet }}"
+#       admin_username: "{{ cloud_user }}"
+#       ssh_password_enabled: no
+#       ssh_public_keys:
+#         - path: "/home/{{ cloud_user }}/.ssh/authorized_keys"
+#           key_data: "{{ ssh_keys[cloud_instance_item.key_name] }}"
+#       tags: "{{ cloud_instance_item.tags | default (omit) }}"
+#       image: "{{ cloud_instance_image }}"
+#     register: vm_result
+
+- set_fact:
+    data_disks_list: "{{ [ { 'lun': '0', 'disk_size_gb': cloud_instance_item.volume_size, 'managed_disk_type': 'Standard_LRS' } ] }}"
+  when: cloud_instance_item.volume_size is defined
+
+- set_fact:
+    network_interface_list: []
+
+- include_tasks: "azure-interface.yml"
+  with_items: "{{ cloud_instance_item.interfaces }}"
+  loop_control:
+    loop_var: cloud_interface_item
+
+- name: Create Azure Instance {{ cloud_instance_item.name }} in {{ cloud_vpc_data.region }}
+  azure_rm_virtualmachine:
+    resource_group: "{{ cloud_vpc_name }}"
+#      profile: "{{ region_info.profile | default(omit) }}"
+    name: "{{ cloud_instance_item.name }}"
+    vm_size: "{{ cloud_instance_size }}"
+    network_interface_names: "{{ network_interface_list }}"
+    admin_username: "{{ cloud_user }}"
+    ssh_password_enabled: no
+    managed_disk_type: Standard_LRS
+    ssh_public_keys:
+      - path: "/home/{{ cloud_user }}/.ssh/authorized_keys"
+        key_data: "{{ ssh_keys[cloud_instance_item.key_name] }}"
+    data_disks: "{{ data_disks_list | default(omit) }}"
+    tags: "{{ cloud_instance_item.tags | default (omit) }}"
+    image: "{{ cloud_instance_image }}"
+    plan: "{{ cloud_instance_image if cloud_instance_image.product is defined else omit }}"
+  register: vm_result
+
+- include: "{{ role_path }}/tasks/{{ cloud_dns_provider }}-record.yml"
+  when: cloud_dns_provider is defined and instance_ip_address is defined

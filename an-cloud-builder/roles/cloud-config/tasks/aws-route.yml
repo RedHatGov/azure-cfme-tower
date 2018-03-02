@@ -1,0 +1,56 @@
+---
+- name: Get instance ID for instance {{ cloud_route_item.1.instance }}
+  set_fact:
+    instance_id: "{{ cloud_instance_map[cloud_route_item.1.instance] }}"
+
+- name: Find interface for instance {{ cloud_route_item.1.instance }} if_index {{ cloud_route_item.1.if_index }} on subnet {{ subnet_map[cloud_route_item.0.name] }}
+  ec2_eni_facts:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    region: "{{ cloud_vpc_data.region }}"
+    filters:
+      attachment.instance-id: "{{ instance_id }}"
+      attachment.device-index: "{{ cloud_route_item.1.if_index }}"
+      # subnet-id: "{{ subnet_map[cloud_route_item.0.name] }}"
+  register: eni_facts
+  failed_when: eni_facts.network_interfaces[0] is not defined
+
+- name: Disable Source/Dest check on instance {{ cloud_route_item.instance }}
+  ec2_eni:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    instance_id: "{{ instance_id }}"
+    eni_id: "{{ eni_facts.network_interfaces[0].network_interface_id }}"
+    region: "{{ cloud_vpc_data.region }}"
+    subnet_id: "{{ subnet_map[cloud_route_item.0.name] }}"
+    source_dest_check: false
+    state: present
+    delete_on_termination: true
+
+- name: Create the route object
+  set_fact:
+    route_object:
+      - dest: "{{ cloud_route_item.1.cidr }}"
+        network_interface_id: "{{ eni_facts.network_interfaces[0].network_interface_id }}"
+  when: ansible_version.full | version_compare('2.5', '>=')
+
+- name: Create the route object
+  set_fact:
+    route_object:
+      - dest: "{{ cloud_route_item.1.cidr }}"
+        interface_id: "{{ eni_facts.network_interfaces[0].network_interface_id }}"
+  when: ansible_version.full | version_compare('2.5', '<')
+
+- name: Route {{ cloud_route_item.1.cidr }} for subnet {{ cloud_route_item.0.name }} to instance {{ cloud_route_item.1.instance }}
+  ec2_vpc_route_table:
+    aws_access_key: "{{ aws_access_key | default(omit) }}"
+    aws_secret_key: "{{ aws_secret_key | default(omit) }}"
+    vpc_id: "{{ vpc_id }}"
+    region: "{{ cloud_vpc_data.region }}"
+    purge_routes: "{{ 'true' if (cloud_route_item.1.cidr == '0.0.0.0/0') else 'false' }}"
+    tags:
+      Name: "{{ cloud_route_item.0.name }}"
+    subnets:
+      - "{{ subnet_map[cloud_route_item.0.name] }}"
+    routes: "{{ route_object }}"
+  register: private_route_table

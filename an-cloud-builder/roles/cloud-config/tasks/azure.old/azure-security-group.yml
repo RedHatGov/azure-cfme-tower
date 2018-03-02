@@ -1,0 +1,15 @@
+---
+- set_fact:
+    rule_list: []
+
+- include: "{{ role_path }}/tasks/azure-security-group-rule.yml"
+  with_indexed_items: "{{ cloud_security_group_list | default([]) }}"
+  loop_control:
+    loop_var: cloud_security_group_rule
+
+- name: Add rule for security group {{ cloud_security_group_name }}
+  azure_rm_securitygroup:
+    resource_group: "{{ cloud_vpc_name }}"
+    name: "{{ cloud_security_group_name }}"
+    purge_rules: yes
+    rules: "{{ rule_list }}"

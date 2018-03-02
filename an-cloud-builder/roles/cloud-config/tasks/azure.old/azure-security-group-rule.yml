@@ -1,0 +1,18 @@
+---
+- set_fact:
+    rule_priority: "{{ 100 + cloud_security_group_rule.0 }}"
+
+- set_fact:
+    rule_name: "rule_{{ rule_priority }}"
+    rule_action: "{{ cloud_security_group_rule.1.action | default('Allow') }}"
+    rule_direction: "{{ cloud_security_group_rule.1.direction | default('Inbound') }}"
+    rule_src_ip: "{{ cloud_security_group_rule.1.src_ip | regex_replace('all', 'Internet') }}"
+    rule_proto: "{{ cloud_security_group_rule.1.proto | regex_replace('[uU][dD][pP]', 'Udp') | regex_replace('[tT][cC][pP]', 'Tcp') | regex_replace('all', '*') }}"
+
+- set_fact:
+    rule_list: "{{ rule_list + [ { 'name': rule_name, 'protocol': rule_proto, 'source_address_prefix': rule_src_ip, 'destination_port_range': cloud_security_group_rule.1.dst_ports, 'access': rule_action, 'priority': rule_priority, 'direction': rule_direction } ] }}"
+  when: rule_proto in ['Tcp','Udp']
+
+- set_fact:
+    rule_list: "{{ rule_list + [ { 'name': rule_name, 'protocol': rule_proto, 'source_address_prefix': rule_src_ip, 'access': rule_action, 'priority': rule_priority, 'direction': rule_direction } ] }}"
+  when: rule_proto == 'Icmp'

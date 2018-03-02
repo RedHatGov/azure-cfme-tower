@@ -1,0 +1,64 @@
+---
+- set_fact:
+    ssh_public_key_material: "{{ lookup('file', cloud_public_key_file) }}"
+    cloud_storage_group: "{{ cloud_vpc_name.lower() | regex_replace('[^a-z0-9]', '') | truncate(24, False, '') }}"
+
+# - debug: var=cloud_vpc_data.instances
+
+- name: Create a lookup table for static IPs
+  set_fact:
+    private_ip_map: "{{ private_ip_map|default({}) | combine( {instance_interface_item.0.name: instance_interface_item.1.private_ip} ) }}"
+  when: instance_interface_item.1.private_ip is defined
+  with_subelements:
+    - "{{ cloud_vpc_data.instances }}"
+    - interfaces
+  loop_control:
+    loop_var: instance_interface_item
+
+# - debug: var=private_ip_map
+#
+- template:
+    src: azure_deploy.json.j2
+    dest: '~/Downloads/azure_deploy.json'
+#
+# - set_fact:
+#     arm_template: "{{ lookup('template', 'azure_deploy.json.j2') }}"
+#
+# - debug: var=arm_template
+
+- name: Create Azure Resource Group {{ cloud_vpc_data.project }} in {{ cloud_vpc_data.region }}
+  azure_rm_resourcegroup:
+    location: "{{ cloud_vpc_data.region }}"
+    name: "{{ cloud_vpc_name }}"
+    state: present
+
+- name: Create storage account
+  azure_rm_storageaccount:
+    state: present
+    resource_group: "{{ cloud_vpc_name }}"
+    location: "{{ cloud_vpc_data.region }}"
+    name: "{{ cloud_storage_group }}"
+    type: Standard_LRS
+    tags:
+      delete: on-exit
+
+- name: Create a container for the VHDs
+  azure_rm_storageblob:
+    resource_group: "{{ cloud_vpc_name }}"
+    storage_account_name: "{{ cloud_storage_group }}"
+    container: vhds
+    state: present
+
+- name: Deploy the template
+  azure_rm_deployment:
+    deployment_mode: complete
+    wait_for_deployment_completion: no
+    state: present
+    location: "{{ cloud_vpc_data.region }}"
+    resource_group_name: "{{ cloud_vpc_name }}"
+    template: "{{ lookup('template', 'azure_deploy.json.j2') }}"
+
+# Pause for 5 minutes to build app cache.
+- name: Wait for the Azure deployment
+  pause:
+    minutes: 3

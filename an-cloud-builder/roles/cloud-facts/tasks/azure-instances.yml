@@ -1,0 +1,15 @@
+---
+- name: Initialize inventory_host_dict
+  set_fact:
+    inventory_host_dict: []
+  when: inventory_host_dict is not defined
+
+- name: Initialize inventory_group_dict
+  set_fact:
+    inventory_group_dict: []
+  when: inventory_group_dict is not defined
+
+- include: "azure-instance.yml"
+  with_items: "{{ cloud_instance_data | default([]) }}"
+  loop_control:
+    loop_var: cloud_instance_item

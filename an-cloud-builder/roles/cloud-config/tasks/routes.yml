@@ -1,0 +1,4 @@
+---
+- include: "{{ role_path }}/tasks/{{ cloud_vpc_data.provider }}-routes.yml"
+  tags:
+  - cloud_routes

@@ -1,0 +1,4 @@
+---
+- include_tasks: "{{ cloud_vpc_data.provider }}-networks.yml"
+  vars:
+    cloud_network_data: "{{ cloud_vpc_data.networks | default([]) }}"
