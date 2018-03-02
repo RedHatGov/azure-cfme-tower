@@ -1,0 +1,18 @@
+---
+- hosts: localhost
+  tasks:
+    - name: Create a virtual network
+      azure_rm_virtualnetwork:
+        tenant: "{{ tenant_var }}"
+        client_id: "{{ client_var }}"
+        secret: "{{ secret_var }}"
+        subscription_id: "{{ sub_var }}"
+        name: "{{ net_name }}"
+        resource_group: "{{ rg }}"
+        address_prefixes_cidr:
+          - "{{ subnet }}"
+        dns_servers:
+          - "{{ dns }}"
+        tags:
+          testing: testing
+          delete: on-exit
