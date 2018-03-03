@@ -14,12 +14,12 @@ crypto ipsec transform-set {{ transform_set }} esp-aes 256 esp-sha256-hmac
 crypto ipsec profile {{ ipsec_profile }}
  set transform-set {{ transform_set }}
 !
+interface Loopback0
+ ip address {{ loopback_ip | ipaddr('address') }} {{ loopback_ip | ipaddr('netmask') }}
+!
 router ospf 1
  network {{ loopback_ip | ipaddr('address') }} {{ loopback_ip | ipaddr('hostmask') }} area 0
  network {{ tunnel_cidr.split('/')[0]}} {{tunnel_cidr | ipaddr('hostmask')}} area 0
-!
-interface Loopback0
- ip address {{ loopback_ip | ipaddr('address') }} {{ loopback_ip | ipaddr('netmask') }}
 !
 interface Tunnel0
  ip address {{ tunnel_cidr | ipaddr(site_number) | ipaddr('address') }} {{ tunnel_cidr | ipaddr('netmask') }}

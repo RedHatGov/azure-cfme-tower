@@ -4,15 +4,14 @@ router_hostname: rtr1.site4
 vmsize: Standard_D2
 username: cisco
 password: "Cisco!234567"
-location: eastus
+location: westus
 vpc_cidr: 10.5.0.0/16
 outside_cidr: 10.5.0.0/24
 inside_cidr: 10.5.1.0/24
 csr_outside_ip: 10.5.0.254
 csr_inside_ip: 10.5.1.254
 host_ip: 10.5.1.10
-tunnel_ip: 172.24.0.6/24
-ssh_public_key: 'ssh-rsa <public key>'
+ssh_public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuzTOkj91OJrBagn7d4Ehesz+HBBvGrwR7go1mVX/SCFu0++JFASoBkKRgMPBfZ9qsPs/ouet+C9RCCtze6P2YiKcZaAJ3kChjzum8fqgCj7SjJbpytsd8w7znDVR8b1ILZfdWPDzeWgtz0uE5edU6ixigxnou1GGYFC5wS+6labmHxLEwdsvmh+JY272tN2Yd8WtmL0z3BP7fveXRwffNU7M+Y/vel/4e4ch9CJg95qjs0LLD5xRVIEGXUUof75AEDNcrv+jgqsC8GBLbP03d2PpJFDViKDCdrRBpg8qpLzv2Afyefyfm5CWA7+iZ343hJF0fflbpGSO9F5rpwkjn tower@tower.tn.redhatgov.io'
 site4_cidr:
   - 10.5.0.0/16
 hub_router: 10.10.10.10

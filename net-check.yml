@@ -1,0 +1,29 @@
+---
+- hosts: rtr1.hub
+  connection: network_cli
+  gather_facts: false
+
+  tasks:
+    - name: show ospf neighbors
+      ios_command:
+        commands: 'show ip ospf neighbor'
+      register: ospf
+
+    - debug:
+        msg: "{{ospf.stdout_lines}}"
+
+    - name: show ip route
+      ios_command:
+        commands: 'show ip route ospf'
+      register: routes
+
+    - debug:
+        msg: "{{routes}}"
+
+    - name: ping site
+      net_ping:
+        dest: "{{new_site | default('10.0.253.254')}}"
+      register: ping
+
+    - debug:
+        msg: "{{ping}}"
