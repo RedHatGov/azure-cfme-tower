@@ -7,7 +7,7 @@
   tasks:
     - name: include azure data set
       include_vars:
-        file: site4.yml
+        file: site-data/site4.yml
 
     - name: Create a resource group
       azure_rm_resourcegroup:
@@ -255,12 +255,13 @@
         ansible_host: "{{ csr_public_ip_address }}"
         ansible_user: "{{username}}"
         ansible_password: "{{password}}"
+        public_ip: "{{csr_public_ip_address}}"
       tags:
         - provision
 
 - name: Add new site to network
   hosts: new_router
-  connection: local
+  connection: network_cli
   gather_facts: no
 
   vars:
@@ -269,3 +270,9 @@
   tasks:
     - include_role:
         name: network_dmvpn
+
+    - debug:
+        msg: "Site 4 Router's Public IP is: {{public_ip}}"
+
+    - debug:
+        msg: "Site 4 Router's Loopback IP is: {{loopback_ip | ipaddr('address')}}"
