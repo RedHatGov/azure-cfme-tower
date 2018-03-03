@@ -1,6 +1,6 @@
 ---
 - hosts: rtr1.hub
-  connection: network_cli
+  connection: local
   gather_facts: false
 
   tasks:
