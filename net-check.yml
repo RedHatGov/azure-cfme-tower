@@ -9,25 +9,33 @@
         commands: 'show ip ospf neighbor'
       register: ospf
 
-    - debug:
-        msg: "{{ospf.stdout_lines}}"
-
     - name: show ip route
       ios_command:
         commands: 'show ip route ospf'
       register: routes
 
-    - debug:
-        msg: "{{routes}}"
-
-    - name: ping site
-      net_ping:
-        dest: "{{new_site | default('10.0.253.254')}}"
-      register: ping
+    - name: show dmvpn neighbors
+      ios_command:
+        commands: 'show dmvpn'
+      register: dmvpn
 
     - debug:
-        msg:
-          - 'Pinging new site IP of: {{new_site}}'
-          - 'Packets transmitted: {{ping.packets_tx}}'
-          - 'Packets received: {{ping.packets_rx}}'
-          - 'Packet loss: {{ping.packet_loss}}'
+        msg: "{{dmvpn}}"
+
+    # - name: ping site
+    #   net_ping:
+    #     dest: "{{new_site | default('10.0.253.254')}}"
+    #   register: ping
+    #
+    # - debug:
+    #     msg: "{{ospf.stdout_lines}}"
+    #
+    # - debug:
+    #     msg: "{{routes}}"
+    #
+    # - debug:
+    #     msg:
+    #       - 'Pinging new site IP of: {{new_site}}'
+    #       - 'Packets transmitted: {{ping.packets_tx}}'
+    #       - 'Packets received: {{ping.packets_rx}}'
+    #       - 'Packet loss: {{ping.packet_loss}}'
