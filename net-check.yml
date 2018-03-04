@@ -26,4 +26,7 @@
       register: ping
 
     - debug:
-        msg: "{{ping}}"
+        msg:
+          - 'Packets transmitted: {{ping.packets_tx}}'
+          - 'Packets received: {{ping.packets_rx}}'
+          - 'Packets loss: {{ping.packets_loss}}'
