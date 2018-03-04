@@ -261,7 +261,7 @@
 
 - name: Add new site to network
   hosts: new_router
-  connection: network_cli
+  connection: local
   gather_facts: no
 
   vars:
