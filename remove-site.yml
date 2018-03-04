@@ -1,0 +1,16 @@
+---
+# tasks file for deploy
+- hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: include azure data set
+      include_vars:
+        file: site-data/site4.yml
+
+    - name: remove resource group
+      azure_rm_resourcegroup:
+        name: "{{ resource }}"
+        state: absent
+        force: yes
