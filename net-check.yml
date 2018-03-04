@@ -21,7 +21,7 @@
 
     - debug:
         # msg: "{{dmvpn.stdout[0].split('\n')[9,15]}}"
-        msg: "{{dmvpn.stdout_lines[9:]}}"
+        msg: "{{dmvpn.stdout_lines[0][9:]}}"
 
     # - name: ping site
     #   net_ping:
