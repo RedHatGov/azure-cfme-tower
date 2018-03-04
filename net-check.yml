@@ -27,6 +27,7 @@
 
     - debug:
         msg:
+          - 'Pinging new site IP of: {{new_site}}'
           - 'Packets transmitted: {{ping.packets_tx}}'
           - 'Packets received: {{ping.packets_rx}}'
           - 'Packet loss: {{ping.packet_loss}}'
