@@ -20,7 +20,7 @@
       register: dmvpn
 
     - debug:
-        msg: "{{dmvpn}}"
+        msg: "{{dmvpn.split('\n')}}"
 
     # - name: ping site
     #   net_ping:
