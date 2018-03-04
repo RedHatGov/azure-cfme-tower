@@ -20,7 +20,8 @@
       register: dmvpn
 
     - debug:
-        msg: "{{dmvpn.stdout[0].split('\n')[9,15]}}"
+        # msg: "{{dmvpn.stdout[0].split('\n')[9,15]}}"
+        msg: "{{dmvpn.stdout[0].split('\n')}}"
 
     # - name: ping site
     #   net_ping:
