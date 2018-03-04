@@ -29,4 +29,4 @@
         msg:
           - 'Packets transmitted: {{ping.packets_tx}}'
           - 'Packets received: {{ping.packets_rx}}'
-          - 'Packets loss: {{ping.packets_loss}}'
+          - 'Packet loss: {{ping.packet_loss}}'
