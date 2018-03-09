@@ -19,24 +19,28 @@
         commands: 'show dmvpn'
       register: dmvpn
 
-    - debug:
-        # msg: "{{dmvpn.stdout[0].split('\n')[9,15]}}"
+    - name: ping site
+      net_ping:
+        dest: "{{new_site | default('10.0.253.254')}}"
+      register: ping
+
+
+    - name: DMVPN information
+      debug:
         msg: "{{dmvpn.stdout_lines[0][9:]}}"
 
-    # - name: ping site
-    #   net_ping:
-    #     dest: "{{new_site | default('10.0.253.254')}}"
-    #   register: ping
-    #
-    # - debug:
-    #     msg: "{{ospf.stdout_lines}}"
-    #
-    # - debug:
-    #     msg: "{{routes}}"
-    #
-    # - debug:
-    #     msg:
-    #       - 'Pinging new site IP of: {{new_site}}'
-    #       - 'Packets transmitted: {{ping.packets_tx}}'
-    #       - 'Packets received: {{ping.packets_rx}}'
-    #       - 'Packet loss: {{ping.packet_loss}}'
+    - name: OSPF information
+      debug:
+        msg: "{{ospf.stdout_lines}}"
+
+    - name: Route information
+      debug:
+        msg: "{{routes}}"
+
+    - name: Ping information
+      debug:
+        msg:
+          - 'Pinging new site IP of: {{new_site}}'
+          - 'Packets transmitted: {{ping.packets_tx}}'
+          - 'Packets received: {{ping.packets_rx}}'
+          - 'Packet loss: {{ping.packet_loss}}'
