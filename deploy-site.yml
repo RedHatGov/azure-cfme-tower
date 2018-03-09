@@ -259,6 +259,10 @@
       tags:
         - provision
 
+    - name: Pause for CSR to finish deploying
+      pause:
+        minutes: 1
+
 - name: Add new site to network
   hosts: new_router
   connection: local
